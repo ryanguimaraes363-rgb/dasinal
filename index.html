@@ -169,8 +169,13 @@
       <div class="conteudo">
         <div class="card perfil-card">
           <span class="avatar"><span data-icone="usuario" data-tam="30"></span></span>
-          <div><strong id="perfil-nome">Visitante</strong><span>Você usa o Dá sinal sem cadastro.</span></div>
+          <div><strong id="perfil-nome">Visitante</strong><span id="perfil-sub">Você usa o Dá sinal sem cadastro.</span></div>
         </div>
+        <a class="card conta-chamada" id="perfil-salvar" href="#/conta" hidden>
+          <span class="conta-chamada-icone" data-icone="escudo" data-tam="22"></span>
+          <span><strong>Salve seus pontos</strong><small>Crie um usuário e uma senha para não perder seus pontos se trocar de celular.</small></span>
+          <span data-icone="avancar" data-tam="20"></span>
+        </a>
         <a class="card pontos-resumo" id="perfil-pontos" href="#/meus-pontos" hidden>
           <span class="nivel-selo" id="perfil-nivel-num">1</span>
           <span class="pontos-resumo-texto">
@@ -182,6 +187,7 @@
           <span data-icone="avancar" data-tam="20"></span>
         </a>
         <div class="menu card">
+          <a class="menu-item" href="#/conta"><span data-icone="usuario" data-tam="20"></span><span>Minha conta</span><em id="perfil-conta"></em><span data-icone="avancar" data-tam="18"></span></a>
           <a class="menu-item" href="#/linhas/favoritas"><span data-icone="coracaoCheio" data-tam="20"></span><span>Minhas linhas favoritas</span><em id="perfil-qtd-fav"></em><span data-icone="avancar" data-tam="18"></span></a>
           <a class="menu-item" href="#/alarme"><span data-icone="sino" data-tam="20"></span><span>Meu alarme de ponto</span><em id="perfil-alarme"></em><span data-icone="avancar" data-tam="18"></span></a>
           <a class="menu-item" href="#/pontos"><span data-icone="pin" data-tam="20"></span><span>Pontos de ônibus</span><span data-icone="avancar" data-tam="18"></span></a>
@@ -190,6 +196,7 @@
             <p><strong>Minha localização no mapa:</strong> só é usada quando você toca no botão e autoriza. Ela não é gravada. Registramos apenas eventos de uso (linha consultada, ponto selecionado e horário) e, se você permitir, uma região aproximada de cerca de 1 km.</p>
             <p><strong>Estou neste ônibus:</strong> com a sua autorização, enviamos sua localização durante a viagem para estimar onde o ônibus está. Ela vai ligada a um código aleatório da viagem, nunca aparece para outras pessoas (o mapa mostra só a posição estimada do ônibus) e é apagada em até 24 horas. A coleta para quando você toca em <strong>Saí do ônibus</strong> ou quando percebemos que a viagem terminou.</p>
             <p id="perfil-consentimento" hidden>Você autorizou o compartilhamento de viagens. <button type="button" class="link-botao" id="btn-revogar">Retirar autorização</button></p>
+            <p><strong>Minha conta:</strong> é opcional e não pede e-mail, telefone nem nome, só um usuário e uma senha que você inventa. O usuário não aparece no ranking (lá aparece só o apelido, se você quiser).</p>
             <p><button type="button" class="link-botao" id="btn-excluir-dados">Excluir meus dados de viagem</button></p>
           </details>
           <a class="menu-item" href="admin.html"><span data-icone="grafico" data-tam="20"></span><span>Área administrativa</span><span data-icone="avancar" data-tam="18"></span></a>
@@ -208,6 +215,18 @@
         </div>
       </header>
       <div class="conteudo" id="meus-pontos-conteudo"></div>
+    </section>
+
+    <!-- Minha conta (usuário e senha, opcional) -->
+    <section class="tela" id="tela-conta" hidden aria-labelledby="titulo-conta">
+      <header class="cabeca">
+        <div class="cabeca-miolo cabeca-nav">
+          <button type="button" class="btn-icone claro js-voltar" aria-label="Voltar"><span data-icone="voltar" data-tam="24"></span></button>
+          <div class="cabeca-centro"><h1 id="titulo-conta">Minha conta</h1></div>
+          <span class="btn-icone-vazio"></span>
+        </div>
+      </header>
+      <div class="conteudo" id="conta-conteudo"></div>
     </section>
 
     <!-- Alarme de ponto -->
@@ -357,6 +376,7 @@
 <script src="regras-pontos.js"></script>
 <script src="gamificacao.js"></script>
 <script src="avisos.js"></script>
+<script src="conta.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
