@@ -574,6 +574,47 @@ body.com-viagem #avisos { bottom: calc(var(--nav-h) + var(--faixa-h) + env(safe-
 .historico-viagem li span:last-child { font-weight: 800; color: var(--texto); }
 .historico-viagem li.negativo span:last-child { color: #B3261E; }
 
+/* ---------- Minha conta ---------- */
+
+.conta-chamada { display: flex; align-items: center; gap: .9rem; padding: .9rem 1rem; margin-bottom: 1rem; color: var(--navy-900); border-left: 4px solid var(--amarelo); }
+.conta-chamada:hover { box-shadow: 0 8px 24px rgba(11,36,71,.13); }
+.conta-chamada > span:nth-child(2) { flex: 1; min-width: 0; display: grid; gap: .15rem; }
+.conta-chamada strong { font-weight: 900; }
+.conta-chamada small { color: var(--texto-2); font-size: .85rem; line-height: 1.35; }
+.conta-chamada-icone { display: grid !important; place-items: center; width: 44px; height: 44px; border-radius: 50%; flex: none; background: var(--amarelo-claro); color: #8A5A00; }
+.conta-chamada-icone.ok { background: var(--verde-claro); color: var(--verde); }
+
+.conta-intro { display: flex; align-items: flex-start; gap: .9rem; padding: 1.1rem; margin-bottom: 1rem; }
+.conta-intro h2 { font-size: 1.15rem; font-weight: 900; margin: .1rem 0 .35rem; color: var(--navy-900); overflow-wrap: anywhere; }
+.conta-intro p { margin: 0; color: var(--texto-2); line-height: 1.45; font-size: .93rem; }
+.conta-intro p + p { margin-top: .5rem; }
+.conta-destaque { color: var(--navy-900) !important; font-weight: 700; background: var(--amarelo-claro); border-radius: 10px; padding: .55rem .7rem; }
+
+.conta-form { padding: 1.1rem; display: grid; gap: .9rem; max-width: 520px; }
+.entrada {
+  width: 100%; height: 48px; padding: 0 .9rem; border: 1.5px solid var(--borda); border-radius: 12px;
+  background: #fff; color: var(--texto); font: inherit; font-weight: 700;
+}
+.entrada:focus { outline: none; border-color: var(--navy-700); box-shadow: 0 0 0 3px rgba(27,68,120,.15); }
+.entrada-codigo { letter-spacing: .12em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+.campo-ajuda { color: var(--texto-2); font-size: .78rem; line-height: 1.35; }
+.conta-check { display: flex; align-items: center; gap: .55rem; font-weight: 700; font-size: .92rem; color: var(--navy-900); cursor: pointer; }
+.conta-check input { width: 20px; height: 20px; margin: 0; accent-color: var(--navy-900); flex: none; }
+.conta-erro { margin: 0; padding: .6rem .75rem; border-radius: 10px; background: #FDECEC; color: #B3261E; font-weight: 700; font-size: .88rem; }
+.conta-rodape { margin: 1rem 0 0; color: var(--texto-2); font-weight: 600; }
+.conta-link { color: var(--navy-800); font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
+
+.conta-codigo { padding: 1.2rem; display: grid; gap: .8rem; max-width: 520px; }
+.conta-codigo h2 { font-size: 1.15rem; font-weight: 900; margin: 0; color: var(--navy-900); }
+.conta-codigo p { margin: 0; color: var(--texto-2); line-height: 1.45; }
+.codigo-recuperacao {
+  margin: .2rem 0 !important; padding: .9rem; border-radius: 12px; text-align: center;
+  background: var(--navy-900); color: var(--amarelo) !important; font-size: 1.45rem; font-weight: 900;
+  letter-spacing: .1em; font-variant-numeric: tabular-nums; user-select: all; overflow-wrap: anywhere;
+}
+.conta-codigo .btn-pequeno { justify-self: start; }
+.conta-acoes { padding: 1rem; display: grid; gap: .6rem; max-width: 520px; }
+
 /* ---------- Avisos dos passageiros ---------- */
 
 .so-leitor { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
