@@ -483,7 +483,8 @@ window.DaSinalColaborativo = (function () {
     excluirMeusDados: function () {
       return temSessao().then(function (ok) {
         if (!ok) return null;
-        return rpc("excluir_meus_dados").then(function () { return client.auth.signOut(); });
+        // A conta já foi apagada no servidor: só limpa a sessão deste aparelho.
+        return rpc("excluir_meus_dados").then(function () { return client.auth.signOut({ scope: "local" }); });
       });
     }
   };
