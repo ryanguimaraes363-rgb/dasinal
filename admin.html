@@ -174,6 +174,14 @@
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .tabela-rolagem { overflow-x: auto; max-height: 320px; overflow-y: auto; }
 
+  /* Moderação dos avisos */
+  .btn-mini { min-height: 32px; padding: 4px 10px; font-size: .8rem; }
+  .estado-aviso { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: .72rem; font-weight: 800; background: var(--superficie-2); color: var(--texto-2); white-space: nowrap; }
+  .estado-aviso.ativo { color: var(--serie-1); }
+  .estado-aviso.oculto { color: var(--erro); }
+  tr.oculto td:not(:last-child) { opacity: .55; }
+  td.texto-aviso { max-width: 280px; overflow-wrap: anywhere; }
+
   .voltar { display: inline-block; margin-top: 24px; font-weight: 800; color: var(--serie-1); }
 
   @media (max-width: 520px) {
@@ -292,6 +300,32 @@
           <div id="t-regioes"></div>
         </article>
       </div>
+    </section>
+
+    <section class="bloco" aria-labelledby="t-avisos">
+      <h2 id="t-avisos">Avisos dos passageiros <small>atrasos, lotação, defeitos e outros problemas</small></h2>
+      <div class="tiles" id="tiles-avisos"></div>
+      <div class="grade-cards">
+        <article class="card">
+          <div class="card-topo"><h3>Avisos por tipo</h3><span class="sub">no período</span></div>
+          <div class="grafico"><canvas id="g-avisos-tipos" role="img" aria-label="Avisos dos passageiros por tipo"></canvas></div>
+          <details class="tabela"><summary>Ver tabela</summary><div class="tabela-rolagem" id="t-avisos-tipos"></div></details>
+        </article>
+        <article class="card">
+          <div class="card-topo"><h3>Avisos por hora</h3><span class="sub">horário de Brasília</span></div>
+          <div class="grafico"><canvas id="g-avisos-horas" role="img" aria-label="Avisos dos passageiros por hora do dia"></canvas></div>
+          <details class="tabela"><summary>Ver tabela</summary><div class="tabela-rolagem" id="t-avisos-horas"></div></details>
+        </article>
+        <article class="card">
+          <div class="card-topo"><h3>Linhas com mais avisos</h3><span class="sub">confirmado = 2 ou mais pessoas</span></div>
+          <div id="t-avisos-linhas"></div>
+        </article>
+      </div>
+      <article class="card" style="margin-top:12px">
+        <div class="card-topo"><h3>Avisos recentes</h3><span class="sub">oculte o que for ofensivo ou falso: some do app na hora</span></div>
+        <div class="tabela-rolagem" id="t-avisos-recentes"></div>
+        <p class="nota">O painel não mostra quem enviou cada aviso.</p>
+      </article>
     </section>
 
     <section class="bloco" aria-labelledby="t-linhas-cad">
