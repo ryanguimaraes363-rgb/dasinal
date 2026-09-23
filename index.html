@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B2447">
+<title>Dá sinal: seu transporte público, sem surpresa</title>
+<meta name="description" content="Consulte linhas de ônibus, veja onde o ônibus está no mapa e saiba o próximo ponto.">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800;0,900;1,900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+<!-- Abertura -->
+<div class="splash" id="splash" aria-hidden="true">
+  <div class="splash-miolo">
+    <img src="logo.svg" alt="" width="96" height="96">
+    <span class="wordmark wordmark-grande">Dá<b>Sinal</b></span>
+    <p>Seu transporte público,<br>sem surpresa.</p>
+  </div>
+  <span class="splash-barra"><i></i></span>
+</div>
+
+<div class="app">
+  <nav class="nav" aria-label="Principal">
+    <a class="nav-marca" href="#/"><img src="logo.svg" alt="" width="40" height="40"><span class="wordmark">Dá<b>Sinal</b></span></a>
+    <a href="#/" data-tela="home"><span data-icone="casa" data-tam="22"></span><span>Início</span></a>
+    <a href="#/linhas" data-tela="linhas"><span data-icone="bus" data-tam="22"></span><span>Linhas</span></a>
+    <a href="#/mapa" data-tela="mapa"><span data-icone="mapa" data-tam="22"></span><span>Mapa</span></a>
+    <a href="#/pontos" data-tela="pontos"><span data-icone="pin" data-tam="22"></span><span>Pontos</span></a>
+    <a href="#/perfil" data-tela="perfil"><span data-icone="usuario" data-tam="22"></span><span>Perfil</span></a>
+  </nav>
+
+  <main class="palco" id="palco">
+
+    <!-- Início -->
+    <section class="tela" id="tela-home" aria-labelledby="titulo-home">
+      <header class="cabeca cabeca-home">
+        <div class="cabeca-miolo">
+          <div class="cabeca-linha">
+            <div>
+              <h1 id="titulo-home">Olá!</h1>
+              <p>Que bom te ver por aqui.</p>
+            </div>
+            <a class="btn-icone claro" id="home-sino" href="#/alarme" aria-label="Alarme de ponto"><span data-icone="sino" data-tam="24"></span><i class="sino-ponto" hidden></i></a>
+          </div>
+          <span class="selo-modo" id="selo-modo" hidden>Demonstração</span>
+        </div>
+      </header>
+      <div class="conteudo">
+        <a class="card-destaque" href="#/mapa">
+          <span class="circulo-amarelo"><span data-icone="bus" data-tam="26"></span></span>
+          <span class="card-destaque-texto"><small>Ônibus em circulação agora</small><strong id="home-circulando">—</strong></span>
+          <span data-icone="avancar" data-tam="22"></span>
+        </a>
+
+        <div class="secao-titulo">
+          <h2 id="home-titulo-lista">Linhas favoritas</h2>
+          <a href="#/linhas">Ver todas</a>
+        </div>
+        <p class="dica" id="home-dica" hidden>Toque no <span data-icone="coracao" data-tam="16"></span> de uma linha para ela aparecer aqui.</p>
+        <div class="grade" id="home-lista"></div>
+
+        <a class="banner" href="#/linhas">
+          <span class="banner-texto">
+            <strong>Com você<br>em todo o caminho.</strong>
+            <span>Saiba onde o ônibus está antes de sair de casa.</span>
+          </span>
+          <svg class="banner-arte" viewBox="0 0 200 120" aria-hidden="true" focusable="false">
+            <path d="M0 104h200" stroke="#FFB71B" stroke-width="3" stroke-dasharray="14 10"/>
+            <rect x="92" y="20" width="4" height="84" fill="#9FB3CF"/>
+            <rect x="80" y="12" width="28" height="18" rx="4" fill="#FFB71B"/>
+            <rect x="86" y="17" width="16" height="8" rx="2" fill="#0B2447"/>
+            <g>
+              <rect x="112" y="44" width="80" height="50" rx="10" fill="#FFB71B"/>
+              <rect x="120" y="52" width="20" height="16" rx="3" fill="#DDE8F7"/>
+              <rect x="144" y="52" width="20" height="16" rx="3" fill="#DDE8F7"/>
+              <rect x="168" y="52" width="18" height="16" rx="3" fill="#DDE8F7"/>
+              <rect x="112" y="74" width="80" height="5" fill="#0B2447" opacity=".85"/>
+              <circle cx="130" cy="96" r="8" fill="#0B2447"/><circle cx="130" cy="96" r="3" fill="#9FB3CF"/>
+              <circle cx="174" cy="96" r="8" fill="#0B2447"/><circle cx="174" cy="96" r="3" fill="#9FB3CF"/>
+            </g>
+            <g fill="#DDE8F7">
+              <circle cx="52" cy="54" r="7"/><path d="M42 94V70a10 10 0 0 1 20 0v24Z"/>
+            </g>
+          </svg>
+        </a>
+
+        <p class="nota" id="nota-demo" hidden></p>
+      </div>
+    </section>
+
+    <!-- Linhas -->
+    <section class="tela" id="tela-linhas" hidden aria-labelledby="titulo-linhas">
+      <header class="cabeca">
+        <div class="cabeca-miolo">
+          <div class="cabeca-centro"><h1 id="titulo-linhas">Linhas</h1></div>
+          <label class="busca">
+            <span data-icone="busca" data-tam="20"></span>
+            <input id="busca-linha" type="search" placeholder="Digite o código ou nome da linha" aria-label="Buscar linha" autocomplete="off">
+          </label>
+        </div>
+      </header>
+      <div class="conteudo">
+        <div class="abas" role="tablist" aria-label="Filtrar linhas">
+          <button type="button" role="tab" id="aba-todas" aria-selected="true">Todas</button>
+          <button type="button" role="tab" id="aba-favoritas" aria-selected="false">Favoritas</button>
+        </div>
+        <div class="lista" id="lista-linhas"></div>
+      </div>
+    </section>
+
+    <!-- Detalhe da linha -->
+    <section class="tela" id="tela-linha" hidden aria-labelledby="linha-titulo">
+      <header class="cabeca">
+        <div class="cabeca-miolo cabeca-nav">
+          <button type="button" class="btn-icone claro js-voltar" aria-label="Voltar"><span data-icone="voltar" data-tam="24"></span></button>
+          <div class="cabeca-centro"><h1 id="linha-titulo">Linha</h1><p id="linha-sub"></p></div>
+          <span id="linha-fav"></span>
+        </div>
+      </header>
+      <div class="conteudo" id="linha-conteudo"></div>
+    </section>
+
+    <!-- Mapa -->
+    <section class="tela tela-mapa" id="tela-mapa" hidden aria-labelledby="mapa-titulo">
+      <header class="cabeca cabeca-compacta">
+        <div class="cabeca-miolo cabeca-nav">
+          <button type="button" class="btn-icone claro js-voltar" id="mapa-voltar" aria-label="Voltar"><span data-icone="voltar" data-tam="24"></span></button>
+          <div class="cabeca-centro"><h1 id="mapa-titulo">Mapa</h1><p id="mapa-sub"></p></div>
+          <span class="btn-icone-vazio"></span>
+        </div>
+      </header>
+      <div class="mapa-area">
+        <div class="mapa" id="mapa" role="application" aria-label="Mapa interativo"></div>
+        <div class="mapa-botoes">
+          <button type="button" class="btn-flutuante" id="btn-loc" aria-pressed="false" aria-label="Usar minha localização" title="Minha localização"><span data-icone="alvo" data-tam="22"></span></button>
+          <button type="button" class="btn-flutuante" id="btn-centralizar" aria-label="Centralizar no ônibus" title="Centralizar no ônibus"><span data-icone="bus" data-tam="22"></span></button>
+        </div>
+        <aside class="sheet" id="sheet" aria-live="polite"></aside>
+      </div>
+    </section>
+
+    <!-- Pontos -->
+    <section class="tela" id="tela-pontos" hidden aria-labelledby="titulo-pontos">
+      <header class="cabeca">
+        <div class="cabeca-miolo">
+          <div class="cabeca-centro"><h1 id="titulo-pontos">Pontos</h1></div>
+          <label class="busca">
+            <span data-icone="busca" data-tam="20"></span>
+            <input id="busca-ponto" type="search" placeholder="Buscar ponto de ônibus" aria-label="Buscar ponto" autocomplete="off">
+          </label>
+        </div>
+      </header>
+      <div class="conteudo">
+        <div class="lista" id="lista-pontos"></div>
+      </div>
+    </section>
+
+    <!-- Perfil -->
+    <section class="tela" id="tela-perfil" hidden aria-labelledby="titulo-perfil">
+      <header class="cabeca">
+        <div class="cabeca-miolo"><div class="cabeca-centro"><h1 id="titulo-perfil">Meu perfil</h1></div></div>
+      </header>
+      <div class="conteudo">
+        <div class="card perfil-card">
+          <span class="avatar"><span data-icone="usuario" data-tam="30"></span></span>
+          <div><strong id="perfil-nome">Visitante</strong><span>Você usa o Dá sinal sem cadastro.</span></div>
+        </div>
+        <a class="card pontos-resumo" id="perfil-pontos" href="#/meus-pontos" hidden>
+          <span class="nivel-selo" id="perfil-nivel-num">1</span>
+          <span class="pontos-resumo-texto">
+            <small id="perfil-nivel-nome">Passageiro</small>
+            <strong><span id="perfil-pontos-total">0</span> pontos</strong>
+            <span class="barra" aria-hidden="true"><i id="perfil-barra"></i></span>
+            <small id="perfil-faltam"></small>
+          </span>
+          <span data-icone="avancar" data-tam="20"></span>
+        </a>
+        <div class="menu card">
+          <a class="menu-item" href="#/linhas/favoritas"><span data-icone="coracaoCheio" data-tam="20"></span><span>Minhas linhas favoritas</span><em id="perfil-qtd-fav"></em><span data-icone="avancar" data-tam="18"></span></a>
+          <a class="menu-item" href="#/alarme"><span data-icone="sino" data-tam="20"></span><span>Meu alarme de ponto</span><em id="perfil-alarme"></em><span data-icone="avancar" data-tam="18"></span></a>
+          <a class="menu-item" href="#/pontos"><span data-icone="pin" data-tam="20"></span><span>Pontos de ônibus</span><span data-icone="avancar" data-tam="18"></span></a>
+          <details class="menu-item menu-detalhes">
+            <summary><span data-icone="escudo" data-tam="20"></span><span>Privacidade e localização</span><span data-icone="avancar" data-tam="18"></span></summary>
+            <p><strong>Minha localização no mapa:</strong> só é usada quando você toca no botão e autoriza. Ela não é gravada. Registramos apenas eventos de uso (linha consultada, ponto selecionado e horário) e, se você permitir, uma região aproximada de cerca de 1 km.</p>
+            <p><strong>Estou neste ônibus:</strong> com a sua autorização, enviamos sua localização durante a viagem para estimar onde o ônibus está. Ela vai ligada a um código aleatório da viagem, nunca aparece para outras pessoas (o mapa mostra só a posição estimada do ônibus) e é apagada em até 24 horas. A coleta para quando você toca em <strong>Saí do ônibus</strong> ou quando percebemos que a viagem terminou.</p>
+            <p id="perfil-consentimento" hidden>Você autorizou o compartilhamento de viagens. <button type="button" class="link-botao" id="btn-revogar">Retirar autorização</button></p>
+            <p><button type="button" class="link-botao" id="btn-excluir-dados">Excluir meus dados de viagem</button></p>
+          </details>
+          <a class="menu-item" href="admin.html"><span data-icone="grafico" data-tam="20"></span><span>Área administrativa</span><span data-icone="avancar" data-tam="18"></span></a>
+        </div>
+        <p class="nota" id="nota-demo-perfil" hidden></p>
+      </div>
+    </section>
+
+    <!-- Meus pontos (gamificação) -->
+    <section class="tela" id="tela-meus-pontos" hidden aria-labelledby="titulo-meus-pontos">
+      <header class="cabeca">
+        <div class="cabeca-miolo cabeca-nav">
+          <button type="button" class="btn-icone claro js-voltar" aria-label="Voltar"><span data-icone="voltar" data-tam="24"></span></button>
+          <div class="cabeca-centro"><h1 id="titulo-meus-pontos">Meus pontos</h1></div>
+          <span class="btn-icone-vazio"></span>
+        </div>
+      </header>
+      <div class="conteudo" id="meus-pontos-conteudo"></div>
+    </section>
+
+    <!-- Alarme de ponto -->
+    <section class="tela" id="tela-alarme" hidden aria-labelledby="titulo-alarme">
+      <header class="cabeca">
+        <div class="cabeca-miolo cabeca-nav">
+          <button type="button" class="btn-icone claro js-voltar" aria-label="Voltar"><span data-icone="voltar" data-tam="24"></span></button>
+          <div class="cabeca-centro"><h1 id="titulo-alarme">Alarme de ponto</h1></div>
+          <span class="btn-icone-vazio"></span>
+        </div>
+      </header>
+      <div class="conteudo">
+        <form class="card form-alarme" id="form-alarme">
+          <p class="intro">Receba um aviso quando o ônibus estiver se aproximando do seu ponto.</p>
+          <label class="campo">
+            <span>Selecione a linha</span>
+            <select id="al-linha" required></select>
+          </label>
+          <label class="campo">
+            <span>Selecione o ponto</span>
+            <select id="al-ponto" required></select>
+          </label>
+          <label class="campo">
+            <span>Avisar quando faltar</span>
+            <select id="al-antes">
+              <option value="0">O próximo ponto for o seu</option>
+              <option value="1">1 ponto antes</option>
+              <option value="2" selected>2 pontos antes</option>
+              <option value="3">3 pontos antes</option>
+            </select>
+          </label>
+          <fieldset class="campo">
+            <legend>Tipo de aviso</legend>
+            <label class="opcao">
+              <input type="radio" name="al-tipo" value="notificacao" checked>
+              <span data-icone="sino" data-tam="22"></span>
+              <span><strong>Notificação</strong><small>Aparece na tela e, se você permitir, como notificação do navegador.</small></span>
+            </label>
+            <label class="opcao">
+              <input type="radio" name="al-tipo" value="som">
+              <span data-icone="volume" data-tam="22"></span>
+              <span><strong>Alarme sonoro</strong><small>Toca um som no momento do aviso.</small></span>
+            </label>
+          </fieldset>
+          <label class="linha-switch">
+            <span>Ativar alarme</span>
+            <input type="checkbox" role="switch" id="al-ativo" class="switch" checked>
+          </label>
+          <p class="nota">O aviso funciona enquanto o Dá sinal estiver aberto no navegador.</p>
+          <button type="submit" class="btn btn-amarelo btn-bloco">Salvar alarme</button>
+        </form>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Pedido de consentimento para usar a localização -->
+<div class="modal" id="modal-loc" role="dialog" aria-modal="true" aria-labelledby="modal-loc-titulo" hidden>
+  <div class="modal-caixa">
+    <div class="modal-icone" data-icone="pin" data-tam="26"></div>
+    <h2 id="modal-loc-titulo">Usar sua localização?</h2>
+    <p>Sua localização pode ser utilizada, mediante sua autorização, para mostrar sua posição no mapa e ajudar a gerar informações agregadas sobre a demanda pelo transporte público.</p>
+    <details>
+      <summary>O que é registrado</summary>
+      <p>Registramos apenas eventos de uso (linha consultada, ponto selecionado e horário) e, se você permitir, uma região aproximada de cerca de 1 km. Não guardamos seu trajeto nem dados que identifiquem você. Você pode parar de compartilhar a qualquer momento e o app continua funcionando sem a localização.</p>
+    </details>
+    <div class="modal-acoes">
+      <button type="button" class="btn btn-amarelo" id="loc-permitir">Permitir localização</button>
+      <button type="button" class="btn btn-contorno" id="loc-agora-nao">Agora não</button>
+    </div>
+  </div>
+</div>
+
+<!-- Consentimento para "Estou neste ônibus" (separado do da localização no mapa) -->
+<div class="modal" id="modal-viagem" role="dialog" aria-modal="true" aria-labelledby="modal-viagem-titulo" hidden>
+  <div class="modal-caixa">
+    <div class="modal-icone" data-icone="sinal" data-tam="26"></div>
+    <h2 id="modal-viagem-titulo">Compartilhar sua viagem?</h2>
+    <p>Enquanto você estiver no ônibus da <strong id="modal-viagem-linha">linha</strong>, sua localização ajuda a mostrar para outros passageiros onde o ônibus está.</p>
+    <details>
+      <summary>Como seus dados são usados</summary>
+      <ul class="lista-modal">
+        <li>Enviamos latitude, longitude, velocidade, direção e horário, ligados a um <strong>código aleatório desta viagem</strong>, e não ao seu nome.</li>
+        <li>Ninguém vê a sua localização. O mapa mostra só a posição <strong>estimada do ônibus</strong>, calculada juntando vários passageiros.</li>
+        <li>As localizações são apagadas em até 24 horas.</li>
+        <li>A coleta para quando você toca em <strong>Saí do ônibus</strong> ou quando percebemos que a viagem acabou.</li>
+        <li>Mantenha o app aberto: com a tela bloqueada, o navegador pode pausar a localização.</li>
+      </ul>
+    </details>
+    <label class="opcao" id="modal-viagem-simular" hidden>
+      <input type="checkbox" id="viagem-simular" checked>
+      <span><strong>Simular minha localização</strong><small>Demonstração: finge que você está dentro de um ônibus simulado, sem precisar sair de casa.</small></span>
+    </label>
+    <div class="modal-acoes">
+      <button type="button" class="btn btn-amarelo" id="viagem-concordo">Concordo, compartilhar</button>
+      <button type="button" class="btn btn-contorno" id="viagem-cancelar">Agora não</button>
+    </div>
+  </div>
+</div>
+
+<!-- Viagem em andamento (aparece em todas as telas) -->
+<div class="faixa-viagem" id="faixa-viagem" hidden>
+  <a class="faixa-texto" id="faixa-link" href="#/mapa">
+    <span class="faixa-icone" data-icone="sinal" data-tam="20"></span>
+    <span><strong id="faixa-titulo">Compartilhando sua viagem</strong><small id="faixa-status" role="status" aria-live="polite"></small></span>
+  </a>
+  <button type="button" class="btn btn-amarelo btn-pequeno" id="faixa-sair"><span data-icone="sair" data-tam="18"></span>Saí do ônibus</button>
+</div>
+
+<div id="avisos" role="status" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="dados-demo.js"></script>
+<script src="icones.js"></script>
+<script src="rotas.js"></script>
+<script src="servicos.js"></script>
+<script src="estimador.js"></script>
+<script src="simulador-passageiros.js"></script>
+<script src="colaborativo.js"></script>
+<script src="viagem.js"></script>
+<script src="regras-pontos.js"></script>
+<script src="gamificacao.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
