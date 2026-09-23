@@ -104,6 +104,21 @@
       try { window.localStorage.removeItem(CHAVE); } catch (e) { /* nada */ }
       return Promise.resolve();
     },
+    // Aviso confirmado por passageiros simulados (avisos.js). No servidor, isso
+    // acontece no banco, em confirmar_aviso.
+    creditarAvisoDemo: function (ev) {
+      var d = ler();
+      var agora = Date.now();
+      var hoje = P.diaDe(agora);
+      if (d.resumo.dia !== hoje) { d.resumo.dia = hoje; d.resumo.pontosHoje = 0; d.resumo.viagensPontuadasHoje = 0; }
+      var pts = Math.min(P.REGRAS.PONTOS_AVISO_CONFIRMADO, Math.max(0, P.REGRAS.LIMITE_PONTOS_DIA - d.resumo.pontosHoje));
+      if (pts <= 0) return;
+      d.resumo.pontosTotal += pts;
+      d.resumo.pontosHoje += pts;
+      d.historico.push({ em: agora, avisoId: ev.avisoId, linhaNumero: ev.linhaNumero, tipo: "aviso_confirmado", pontos: pts, descricao: "Aviso confirmado por outros passageiros" });
+      gravar(d);
+      notificar({ tipo: "aviso_confirmado", linhaNumero: ev.linhaNumero, total: pts, nivel: P.nivelDe(d.resumo.pontosTotal) });
+    },
     // Chamado quando uma viagem termina (ver final do arquivo).
     pontuar: function (ev) {
       var s = ev.situacao || {};
@@ -167,7 +182,7 @@
             semana: d.semana || 0,
             conquistas: montarConquistas(obtidas),
             historico: (d.historico || []).map(function (h) {
-              return { em: Date.parse(h.criado_em), viagemId: h.viagem_id, linhaNumero: h.linha_numero, tipo: h.tipo, pontos: h.pontos, descricao: h.descricao };
+              return { em: Date.parse(h.criado_em), viagemId: h.viagem_id, avisoId: h.aviso_id || null, linhaNumero: h.linha_numero, tipo: h.tipo, pontos: h.pontos, descricao: h.descricao };
             }),
             perfil: { apelido: d.apelido || null, aparece: !!d.aparece_no_ranking }
           };
@@ -216,6 +231,7 @@
     ranking: backend.ranking,
     atualizarPerfil: backend.atualizarPerfil,
     apagar: backend.apagar,
+    creditarAvisoDemo: noServidor ? null : demo.creditarAvisoDemo,
     aoMudar: function (cb) {
       ouvintes.push(cb);
       return function () { var i = ouvintes.indexOf(cb); if (i >= 0) ouvintes.splice(i, 1); };
