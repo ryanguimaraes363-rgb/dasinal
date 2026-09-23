@@ -190,7 +190,7 @@
       el("div", { class: "card-fav-topo" },
         badgeLinha(l),
         el("a", { class: "linha-textos cobrir", href: "#/linha/" + l.id },
-          el("strong", { text: l.nome }), trajeto(l)),
+          el("strong", { text: l.nome }), trajeto(l), seloAvisos(l)),
         botaoFavorito(l)),
       el("a", { class: "card-fav-prox", href: "#/mapa/" + l.id, "aria-label": "Ver a linha " + l.numero + " no mapa" },
         icone("bus", 24),
@@ -212,7 +212,7 @@
 
   function abrirHome() {
     var versao = mostrarTela("home");
-    Promise.all([carregarLinhas(), S.dados.statusPorLinha().catch(function () { return {}; })]).then(function (r) {
+    Promise.all([carregarLinhas(), S.dados.statusPorLinha().catch(function () { return {}; }), carregarResumoAvisos()]).then(function (r) {
       if (versao !== versaoTela) return;
       var linhas = r[0];
       statusCache = r[1] || {};
@@ -238,7 +238,9 @@
   function itemLinha(l) {
     var textos = el("a", { class: "linha-textos cobrir", href: "#/linha/" + l.id },
       el("strong", { text: l.nome }), trajeto(l));
-    if (statusCache[l.id]) textos.append(pillStatus(statusCache[l.id]));
+    if (statusCache[l.id] || avisosCache[l.id]) {
+      textos.append(el("span", { class: "pills" }, statusCache[l.id] ? pillStatus(statusCache[l.id]) : null, seloAvisos(l)));
+    }
     return el("article", { class: "item-linha", style: "--cor:" + S.util.corDaLinha(l) },
       badgeLinha(l), textos, botaoFavorito(l), el("span", { class: "chevron" }, icone("avancar", 20)));
   }
@@ -266,7 +268,7 @@
   function abrirLinhas(filtro) {
     var versao = mostrarTela("linhas");
     filtroLinhas = filtro === "favoritas" ? "favoritas" : "todas";
-    Promise.all([carregarLinhas(), S.dados.statusPorLinha().catch(function () { return {}; })]).then(function (r) {
+    Promise.all([carregarLinhas(), S.dados.statusPorLinha().catch(function () { return {}; }), carregarResumoAvisos()]).then(function (r) {
       if (versao !== versaoTela) return;
       statusCache = r[1] || {};
       desenharListaLinhas();
@@ -353,7 +355,7 @@
     escolher(abaInicial);
 
     $("#linha-conteudo").replaceChildren(el("div", { class: "detalhe-grade" },
-      resumo,
+      el("div", { class: "detalhe-coluna" }, resumo, cardAvisos(l, function (c) { cancelarTela.push(c); })),
       el("div", { class: "abas-linha" },
         el("div", { class: "abas", role: "tablist", "aria-label": "Informações da linha" }, abaParadas, abaSobre),
         painelParadas, painelSobre)));
@@ -627,6 +629,7 @@
       el("div", { class: "sheet-meta" }, refs.status, refs.hora),
       refs.confianca,
       S.viagem.disponivel() ? el("div", { class: "sheet-viagem" }, botaoViagem(linha, function (c) { assinaturas.push(c); })) : null,
+      cardAvisos(linha, function (c) { assinaturas.push(c); }, true),
       verParadas,
       lista,
       notaPosicao(),
@@ -828,6 +831,7 @@
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && !$("#modal-loc").hidden) $("#loc-agora-nao").click();
     if (e.key === "Escape" && !$("#modal-viagem").hidden) $("#viagem-cancelar").click();
+    if (e.key === "Escape" && !$("#modal-aviso").hidden) $("#aviso-cancelar").click();
   });
 
   // ---------- "Estou neste ônibus" (viagem colaborativa) ----------
@@ -955,6 +959,187 @@
     if (telaAtual === "perfil") atualizarPerfilConsentimento();
   });
 
+  // ---------- Avisos dos passageiros (atraso, lotação, defeito…) ----------
+
+  var A = S.avisos;
+  var MSG_AVISO = {
+    texto_obrigatorio: "Conte em poucas palavras qual é o problema.",
+    texto_longo: "O detalhe pode ter no máximo 80 caracteres.",
+    texto_curto: "Escreva um pouco mais no detalhe, ou deixe em branco.",
+    "texto_recusado:link": "Tire o link do texto.",
+    "texto_recusado:contato": "Não coloque telefone nem e-mail no aviso.",
+    "texto_recusado:palavra": "Reescreva o detalhe sem palavras ofensivas.",
+    limite_avisos: "Você já enviou 5 avisos na última hora. Tente de novo mais tarde.",
+    aviso_repetido: "Você já avisou isso nesta linha. O aviso continua valendo.",
+    aviso_encerrado: "Esse aviso já saiu do ar.",
+    proprio_aviso: "Esse aviso é seu.",
+    limite_confirmacoes: "Muitas confirmações em pouco tempo. Tente de novo mais tarde.",
+    linha_invalida: "Esta linha não está disponível agora.",
+    tipo_invalido: "Escolha o tipo do problema."
+  };
+
+  function mensagemAviso(erro) {
+    var m = String((erro && erro.message) || "");
+    var chave = Object.keys(MSG_AVISO).filter(function (k) { return m.indexOf(k) >= 0; })
+      .sort(function (a, b) { return b.length - a.length; })[0];
+    return chave ? MSG_AVISO[chave] : "Não foi possível enviar agora. Verifique sua conexão e tente de novo.";
+  }
+
+  function tempoRelativo(ms) {
+    var min = Math.floor((Date.now() - ms) / 60000);
+    if (min < 1) return "agora";
+    if (min < 60) return "há " + min + " min";
+    var h = Math.floor(min / 60);
+    return "há " + h + " h" + (min % 60 ? " " + (min % 60) + " min" : "");
+  }
+
+  function itemAviso(a, linha) {
+    var t = A.tipo(a.tipo);
+    var meta = tempoRelativo(a.criadoEm) +
+      (a.confirmacoes ? " · " + (a.confirmacoes === 1 ? "1 pessoa confirmou" : a.confirmacoes + " pessoas confirmaram") : "");
+    var acao;
+    if (a.meu) {
+      acao = el("button", { type: "button", class: "link-botao av-retirar", text: "Retirar" });
+      acao.addEventListener("click", function () {
+        A.retirar(a.id, linha.id).then(function () { avisar("Aviso retirado. Obrigado por manter as informações em dia."); },
+          function (e) { avisar(mensagemAviso(e)); });
+      });
+    } else {
+      acao = el("button", { type: "button", class: "btn btn-contorno btn-pequeno av-confirmar", "aria-pressed": String(!!a.confirmei),
+        "aria-label": a.confirmei ? "Você já confirmou este aviso" : "Também vi: " + t.nome },
+        icone("joinha", 18), a.confirmei ? "Confirmado" : "Também vi");
+      if (a.confirmei) acao.disabled = true;
+      acao.addEventListener("click", function () {
+        acao.disabled = true;
+        A.confirmar(a.id, linha.id).then(function () { avisar("Obrigado por confirmar!"); },
+          function (e) { acao.disabled = false; avisar(mensagemAviso(e)); });
+      });
+    }
+    return el("li", { class: "av-item" + (a.confirmacoes >= 2 ? " forte" : "") },
+      el("span", { class: "av-icone av-" + a.tipo }, icone(t.icone, 20)),
+      el("div", { class: "av-textos" },
+        el("strong", { text: t.nome }),
+        a.texto ? el("span", { class: "av-texto", text: "“" + a.texto + "”" }) : null,
+        el("small", {}, meta),
+        (a.naViagem || a.meu) ? el("span", { class: "av-selos" },
+          a.naViagem ? el("span", { class: "av-selo" }, icone("bus", 12), "de quem estava no ônibus") : null,
+          a.meu ? el("span", { class: "av-selo meu", text: "seu aviso" }) : null) : null),
+      acao);
+  }
+
+  // Cartão com os avisos de uma linha. Atualiza a cada 30 s e quando este app
+  // envia ou confirma um aviso. compacto: só os 2 principais (usado no mapa).
+  function cardAvisos(linha, registrarCancelamento, compacto) {
+    var lista = el("ul", { class: "av-lista" });
+    var contador = el("span", { class: "contador" });
+    var botao = el("button", { type: "button", class: "btn btn-contorno btn-pequeno btn-bloco av-avisar" }, icone("megafone", 18), "Avisar problema");
+    botao.addEventListener("click", function () { abrirModalAviso(linha); });
+    var mais = compacto ? el("a", { class: "av-mais", href: "#/linha/" + linha.id, hidden: "" }) : null;
+    var card = el("section", { class: compacto ? "av-card compacto" : "card av-card", "aria-label": "Avisos dos passageiros da linha " + linha.numero },
+      el("div", { class: "av-cabeca" }, el("h2", {}, icone("alerta", 18), "Avisos dos passageiros"), contador),
+      lista, mais, botao);
+
+    var parado = false;
+    function carregar() {
+      A.listar(linha.id).then(function (avisos) {
+        if (parado) return;
+        contador.textContent = avisos.length ? avisos.length + " agora" : "";
+        if (!avisos.length) {
+          preencher(lista, el("li", { class: "av-vazio", text: compacto ? "Nenhum problema avisado agora."
+            : "Nenhum problema avisado agora. Viu algo errado? Avise quem está esperando." }));
+          if (mais) mais.hidden = true;
+          return;
+        }
+        var mostrar = compacto ? avisos.slice(0, 2) : avisos;
+        preencher.apply(null, [lista].concat(mostrar.map(function (a) { return itemAviso(a, linha); })));
+        if (mais) { mais.hidden = avisos.length <= 2; mais.textContent = "Ver todos os avisos (" + avisos.length + ")"; }
+      }, function () {
+        if (!parado) preencher(lista, el("li", { class: "av-vazio", text: "Não foi possível carregar os avisos agora." }));
+      });
+    }
+    carregar();
+    var timer = setInterval(carregar, 30000);
+    var desligar = A.aoMudar(function (id) { if (String(id) === String(linha.id)) carregar(); });
+    registrarCancelamento(function () { parado = true; clearInterval(timer); desligar(); });
+    return card;
+  }
+
+  // Selo "N avisos" nas listas de linhas.
+  var avisosCache = {};
+  function seloAvisos(l) {
+    var n = avisosCache[l.id];
+    if (!n) return null;
+    return el("span", { class: "pill av-pill", title: n === 1 ? "1 aviso de passageiro agora" : n + " avisos de passageiros agora" },
+      icone("alerta", 12), n === 1 ? "1 aviso" : n + " avisos");
+  }
+  function carregarResumoAvisos() {
+    return A.resumo().then(function (r) { avisosCache = r || {}; }, function () { avisosCache = {}; });
+  }
+
+  // Pop-up "Avisar problema"
+  var linhaDoModalAviso = null;
+  var tipoEscolhido = null;
+
+  A.TIPOS.forEach(function (t) {
+    var input = el("input", { type: "radio", name: "aviso-tipo", value: t.codigo });
+    input.addEventListener("change", function () { tipoEscolhido = t.codigo; atualizarFormAviso(); });
+    $("#aviso-tipos").append(el("label", { class: "av-tipo av-" + t.codigo }, input, icone(t.icone, 22), el("span", { text: t.nome })));
+  });
+
+  function atualizarFormAviso() {
+    var texto = $("#aviso-texto").value;
+    $("#aviso-contador").textContent = texto.length + "/80";
+    $("#aviso-texto-rotulo").textContent = tipoEscolhido === "outro" ? "Qual é o problema?" : "Detalhe (opcional)";
+    $("#aviso-enviar").disabled = !tipoEscolhido || (tipoEscolhido === "outro" && texto.trim().length < 3);
+    $("#aviso-erro").hidden = true;
+  }
+
+  function erroNoFormAviso(texto) {
+    $("#aviso-erro").textContent = texto;
+    $("#aviso-erro").hidden = false;
+  }
+
+  function abrirModalAviso(linha) {
+    linhaDoModalAviso = linha;
+    tipoEscolhido = null;
+    $("#form-aviso").reset();
+    atualizarFormAviso();
+    $("#modal-aviso-linha").textContent = "linha " + linha.numero;
+    ultimoFocoAntesDoModal = document.activeElement;
+    $("#modal-aviso").hidden = false;
+    $("#aviso-tipos input").focus();
+  }
+
+  function fecharModalAviso() {
+    $("#modal-aviso").hidden = true;
+    linhaDoModalAviso = null;
+    if (ultimoFocoAntesDoModal && ultimoFocoAntesDoModal.focus) ultimoFocoAntesDoModal.focus();
+  }
+
+  $("#aviso-texto").addEventListener("input", atualizarFormAviso);
+  $("#aviso-cancelar").addEventListener("click", fecharModalAviso);
+  $("#modal-aviso").addEventListener("click", function (e) { if (e.target === e.currentTarget) fecharModalAviso(); });
+  $("#form-aviso").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var linha = linhaDoModalAviso;
+    if (!linha || !tipoEscolhido) return;
+    var texto = $("#aviso-texto").value;
+    var recusa = texto.trim() ? A.textoRecusado(texto) : null;
+    if (recusa) { erroNoFormAviso(MSG_AVISO["texto_recusado:" + recusa]); return; }
+    var b = $("#aviso-enviar");
+    b.disabled = true;
+    b.textContent = "Enviando…";
+    A.criar(linha, tipoEscolhido, texto).then(function (r) {
+      fecharModalAviso();
+      avisar(r && r.juntou ? "Outra pessoa já tinha avisado isso. Contamos como “Também vi”."
+        : "Aviso enviado! Obrigado por ajudar quem está esperando o ônibus.", true);
+      carregarResumoAvisos();
+    }, function (erro) {
+      erroNoFormAviso(mensagemAviso(erro));
+      b.disabled = false;
+    }).then(function () { b.textContent = "Enviar aviso"; });
+  });
+
   // ---------- Pontos ----------
 
   var pontosAgrupados = null;
@@ -1079,6 +1264,7 @@
         el("li", { text: "+" + (R.PONTOS_INICIO + R.PONTOS_VALIDADA) + " quando a viagem é validada, ou seja, você esteve mesmo num ônibus por pelo menos 3 minutos." }),
         el("li", { text: "+1 a cada 2 minutos ajudando, até +" + R.MAX_CONTRIBUICAO + " por viagem." }),
         el("li", { text: "+" + R.PONTOS_CONFIRMADA + " quando outro passageiro confirma o mesmo ônibus." }),
+        el("li", { text: "+" + R.PONTOS_AVISO_CONFIRMADO + " quando " + R.CONFIRMACOES_AVISO + " pessoas confirmam um aviso seu (atraso, lotação, defeito…)." }),
         el("li", { text: "Até " + R.LIMITE_PONTOS_DIA + " pontos e " + R.LIMITE_VIAGENS_DIA + " viagens pontuadas por dia." }),
         el("li", { text: "Viagens que não se confirmam não pontuam. Muitas delas seguidas reduzem os pontos das próximas." })),
       el("p", { class: "nota", text: "Os pontos premiam quem ajuda de verdade. Deixar a localização ligada fora do ônibus, a pé ou de carro não conta." }));
@@ -1135,7 +1321,8 @@
     var grupos = [];
     res.historico.forEach(function (h) {
       var g = grupos[grupos.length - 1];
-      if (!g || g.viagemId !== h.viagemId) { g = { viagemId: h.viagemId, linhaNumero: h.linhaNumero, em: h.em, itens: [], total: 0 }; grupos.push(g); }
+      var chave = h.viagemId || (h.avisoId ? "aviso:" + h.avisoId : null);
+      if (!g || g.chave !== chave) { g = { chave: chave, aviso: !h.viagemId && !!h.avisoId, linhaNumero: h.linhaNumero, em: h.em, itens: [], total: 0 }; grupos.push(g); }
       g.itens.push(h);
       g.total += h.pontos;
     });
@@ -1147,7 +1334,7 @@
       });
       historico.append(el("div", { class: "card historico-viagem" },
         el("div", { class: "historico-topo" },
-          el("span", {}, el("strong", { text: g.linhaNumero ? "Linha " + g.linhaNumero : "Viagem" }), el("small", { text: dataHora(g.em) })),
+          el("span", {}, el("strong", { text: (g.aviso ? "Aviso · " : "") + (g.linhaNumero ? "Linha " + g.linhaNumero : g.aviso ? "" : "Viagem") }), el("small", { text: dataHora(g.em) })),
           el("strong", { class: "historico-total", text: "+" + g.total })),
         itens));
     });
@@ -1170,7 +1357,9 @@
   S.pontos.aoMudar(function (ev) {
     // Depois do aviso de fim da viagem.
     setTimeout(function () {
-      if (ev.tipo === "pontuada") {
+      if (ev.tipo === "aviso_confirmado") {
+        avisar("+" + ev.total + " pontos: outros passageiros confirmaram seu aviso na linha " + ev.linhaNumero + "!", true);
+      } else if (ev.tipo === "pontuada") {
         avisar("+" + ev.total + " pontos pela viagem na linha " + ev.linhaNumero + "! Obrigado por ajudar.", true);
         (ev.conquistas || []).forEach(function (c) { avisar("Conquista desbloqueada: " + c.nome, true); });
       } else if (ev.motivo === "limite_viagens_dia") {
@@ -1195,8 +1384,9 @@
   });
 
   $("#btn-excluir-dados").addEventListener("click", function () {
-    if (!window.confirm("Apagar suas viagens compartilhadas, autorizações, pontos e perfil? Isso não pode ser desfeito.")) return;
+    if (!window.confirm("Apagar suas viagens compartilhadas, autorizações, avisos, pontos e perfil? Isso não pode ser desfeito.")) return;
     S.viagem.excluirMeusDados().then(S.pontos.apagar).then(function () {
+      if (!A.noServidor) A.apagarDemo(); // no servidor, excluir_meus_dados já apaga os avisos
       atualizarPerfilConsentimento();
       atualizarCardPontos();
       avisar("Pronto. Seus dados de viagem foram apagados.");
