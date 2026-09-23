@@ -309,6 +309,29 @@
   </div>
 </div>
 
+<!-- Avisar um problema na linha (atraso, lotação, defeito…) -->
+<div class="modal" id="modal-aviso" role="dialog" aria-modal="true" aria-labelledby="modal-aviso-titulo" hidden>
+  <form class="modal-caixa" id="form-aviso" novalidate>
+    <div class="modal-icone" data-icone="megafone" data-tam="26"></div>
+    <h2 id="modal-aviso-titulo">Avisar um problema</h2>
+    <p>O que está acontecendo na <strong id="modal-aviso-linha">linha</strong> agora?</p>
+    <fieldset class="av-tipos" id="aviso-tipos">
+      <legend class="so-leitor">Tipo de problema</legend>
+    </fieldset>
+    <label class="campo av-campo-texto">
+      <span id="aviso-texto-rotulo">Detalhe (opcional)</span>
+      <textarea id="aviso-texto" maxlength="80" rows="2" placeholder="Ex.: ar-condicionado quebrado" aria-describedby="aviso-contador"></textarea>
+      <small id="aviso-contador" class="av-contador">0/80</small>
+    </label>
+    <p class="nota av-nota">Não escreva nomes, placas nem telefones. Ninguém vê quem avisou, e o aviso some sozinho em 45 minutos.</p>
+    <p class="av-erro" id="aviso-erro" role="alert" hidden></p>
+    <div class="modal-acoes">
+      <button type="submit" class="btn btn-amarelo" id="aviso-enviar" disabled>Enviar aviso</button>
+      <button type="button" class="btn btn-contorno" id="aviso-cancelar">Cancelar</button>
+    </div>
+  </form>
+</div>
+
 <!-- Viagem em andamento (aparece em todas as telas) -->
 <div class="faixa-viagem" id="faixa-viagem" hidden>
   <a class="faixa-texto" id="faixa-link" href="#/mapa">
@@ -333,6 +356,7 @@
 <script src="viagem.js"></script>
 <script src="regras-pontos.js"></script>
 <script src="gamificacao.js"></script>
+<script src="avisos.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
