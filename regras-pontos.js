@@ -32,6 +32,8 @@
     SEGUNDOS_POR_PONTO: 120,       // +1 a cada 2 min contribuindo...
     MAX_CONTRIBUICAO: 20,          // ...até 20 por viagem (40 min)
     PONTOS_CONFIRMADA: 5,          // outro passageiro confirmou o mesmo ônibus
+    PONTOS_AVISO_CONFIRMADO: 3,    // aviso (atraso, lotação…) confirmado por 2 outras pessoas
+    CONFIRMACOES_AVISO: 2,         // (as duas regras de aviso rodam no banco: 006_avisos.sql)
     LIMITE_PONTOS_DIA: 100,
     LIMITE_VIAGENS_DIA: 6,
     DURACAO_MIN_PENALIDADE_MS: 5 * 60000, // viagem curta que não validou não pesa na confiabilidade
