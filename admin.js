@@ -24,7 +24,14 @@
     interacao_linha: "Toques no ônibus", localizacao_permitida: "Localização permitida", localizacao_negada: "Localização negada"
   };
 
-  var estado = { dias: 30, dados: null, linhas: [], graficos: {}, mapa: null, marcadores: {}, timer: null };
+  // Mesma ordem e nomes de avisos.js.
+  var ROTULO_AVISO = {
+    atrasado: "Atrasado", nao_passou: "Não passou", lotado: "Lotado", defeito: "Ônibus com defeito",
+    transito: "Acidente ou trânsito", ponto: "Problema no ponto", outro: "Outro problema"
+  };
+  var CHAVE_AVISOS_APP = "dasinal.avisos.v1";
+
+  var estado = { dias: 30, dados: null, avisos: null, linhas: [], graficos: {}, mapa: null, marcadores: {}, timer: null };
   var fmt = new Intl.NumberFormat("pt-BR");
 
   // ---------- Utilidades ----------
@@ -177,17 +184,89 @@
     };
   }
 
+  // Avisos da demonstração: os que foram enviados no app neste navegador
+  // (mesmo endereço, mesmo armazenamento) + números fictícios do período.
+  function lerAvisosApp() {
+    try { var d = JSON.parse(window.localStorage.getItem(CHAVE_AVISOS_APP) || "null"); return d && Array.isArray(d.avisos) ? d : null; }
+    catch (e) { return null; }
+  }
+
+  function avisosDemo(dias) {
+    var salvo = lerDemo();
+    var app = lerAvisosApp();
+    var agora = Date.now();
+    var inicio = agora - dias * 86400000;
+    var linhaDe = {};
+    estado.linhas.forEach(function (l) { linhaDe[l.id] = l; });
+    var doApp = (app ? app.avisos : []).filter(function (a) { return a.criadoEm >= inicio; });
+
+    var pesos = { atrasado: 0.3, lotado: 0.27, nao_passou: 0.14, defeito: 0.1, transito: 0.08, ponto: 0.06, outro: 0.05 };
+    var formaHora = [0, 0, 0, 0, 1, 3, 8, 10, 6, 3, 2, 3, 4, 3, 2, 2, 4, 8, 10, 7, 3, 2, 1, 0];
+    var totalForma = formaHora.reduce(function (s, v) { return s + v; }, 0);
+    var ficticios = 0;
+    if (salvo) {
+      for (var i = dias - 1; i >= 0; i--) {
+        var d = salvo.dias.filter(function (x) { return x.dia === diaISO(agora - i * 86400000); })[0];
+        if (d) ficticios += Math.round(d.viagens * 0.12);
+      }
+    }
+    var tipos = {};
+    Object.keys(pesos).forEach(function (k) { tipos[k] = Math.round(ficticios * pesos[k]); });
+    var horas = formaHora.map(function (v) { return Math.round(ficticios * v / totalForma); });
+    doApp.forEach(function (a) {
+      tipos[a.tipo] = (tipos[a.tipo] || 0) + 1;
+      horas[new Date(a.criadoEm - 3 * 3600000).getUTCHours()]++;
+    });
+    var total = Object.keys(tipos).reduce(function (s, k) { return s + tipos[k]; }, 0);
+    var confirmados = Math.round(ficticios * 0.55) + doApp.filter(function (a) { return a.confirmacoes >= 2; }).length;
+
+    return {
+      total: total,
+      confirmados: confirmados,
+      noOnibus: Math.round(ficticios * 0.4) + doApp.filter(function (a) { return a.naViagem; }).length,
+      ativos: doApp.filter(function (a) { return !a.oculto && a.expiraEm > agora; }).length,
+      tipos: tipos,
+      horas: horas,
+      linhas: total ? estado.linhas.slice(0, 1).map(function (l) {
+        return { numero: l.numero, nome: l.nome, avisos: total, confirmados: confirmados, tipoMaisComum: "atrasado" };
+      }) : [],
+      recentes: doApp.slice().sort(function (a, b) { return b.criadoEm - a.criadoEm; }).slice(0, 50).map(function (a) {
+        return {
+          id: a.id, linha: (linhaDe[a.linhaId] || {}).numero || String(a.linhaId), tipo: a.tipo, texto: a.texto,
+          criado_em: new Date(a.criadoEm).toISOString(), confirmacoes: a.confirmacoes, na_viagem: !!a.naViagem,
+          oculto: !!a.oculto, ativo: !a.oculto && a.expiraEm > agora
+        };
+      })
+    };
+  }
+
+  function ocultarAvisoDemo(id, oculto) {
+    var app = lerAvisosApp();
+    if (!app) return Promise.resolve();
+    app.avisos.forEach(function (a) { if (a.id === id) a.oculto = oculto; });
+    try { window.localStorage.setItem(CHAVE_AVISOS_APP, JSON.stringify(app)); } catch (e) { /* sem armazenamento */ }
+    return Promise.resolve();
+  }
+
   // ---------- Carregar e desenhar ----------
+
+  function rpc(nome, args) {
+    return client.rpc(nome, args).then(function (r) { if (r.error) throw r.error; return r.data; });
+  }
 
   function carregar(silencioso) {
     var blocos = document.querySelectorAll("section.bloco");
     if (!silencioso && estado.dados) blocos.forEach(function (b) { b.classList.add("carregando"); });
-    var promessa = noServidor
-      ? client.rpc("admin_painel", { p_dias: estado.dias }).then(function (r) { if (r.error) throw r.error; return r.data; })
-      : Promise.resolve(dadosDemo(estado.dias));
-    return promessa.then(function (d) {
+    var promessa = noServidor ? rpc("admin_painel", { p_dias: estado.dias }) : Promise.resolve(dadosDemo(estado.dias));
+    // Os avisos vêm à parte: se falharem (ex.: 006 ainda não rodou), o resto do painel continua.
+    var avisos = (noServidor ? rpc("admin_avisos", { p_dias: estado.dias }) : Promise.resolve(avisosDemo(estado.dias)))
+      .catch(function () { return null; });
+    return Promise.all([promessa, avisos]).then(function (r) {
+      var d = r[0];
       estado.dados = d;
+      estado.avisos = r[1];
       desenharPeriodo();
+      desenharAvisos(estado.avisos);
       if (noServidor) desenharAgora(d.agora);
       $("#atualizado").textContent = "Atualizado às " + horaAgora();
     }).catch(function (e) {
@@ -394,6 +473,85 @@
       : el("p", { class: "vazio", text: "Nenhum evento com região no período." }));
   }
 
+  function barrasHorizontais(rotulos, dados, rotulo) {
+    return {
+      type: "bar",
+      data: { labels: rotulos, datasets: [barras(rotulo, dados, token("--serie-1"), true)] },
+      options: opcoesBase({ indexAxis: "y", interaction: { mode: "nearest", axis: "y", intersect: false }, scales: {
+        x: { beginAtZero: true, grid: { color: token("--grade") }, border: { display: false }, ticks: { color: token("--texto-2"), precision: 0 } },
+        y: { grid: { display: false }, border: { color: token("--eixo") }, ticks: { color: token("--texto-2") } } } })
+    };
+  }
+
+  function dataHoraCurta(iso) {
+    var d = new Date(iso);
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function desenharAvisos(av) {
+    if (!av) {
+      $("#tiles-avisos").replaceChildren(el("p", { class: "vazio", text: noServidor
+        ? "Não foi possível carregar os avisos. Confira se a migração 006_avisos.sql já foi aplicada."
+        : "Não foi possível carregar os avisos." }));
+      ["#t-avisos-linhas", "#t-avisos-recentes", "#t-avisos-tipos", "#t-avisos-horas"].forEach(function (s) { $(s).replaceChildren(); });
+      return;
+    }
+    $("#tiles-avisos").replaceChildren(
+      tile("Avisos no período", num(av.total), "enviados pelos passageiros"),
+      tile("Confirmados", num(av.confirmados), pct(av.confirmados, av.total) + " com 2 ou mais confirmações"),
+      tile("De dentro do ônibus", num(av.noOnibus), "quem avisou estava compartilhando a viagem"),
+      tile("Em vigor agora", num(av.ativos), "aparecendo no app"));
+
+    var chaves = Object.keys(ROTULO_AVISO);
+    var tipos = av.tipos || {};
+    grafico("g-avisos-tipos", barrasHorizontais(chaves.map(function (k) { return ROTULO_AVISO[k]; }), chaves.map(function (k) { return tipos[k] || 0; }), "Avisos"));
+    $("#t-avisos-tipos").replaceChildren(tabela(["Tipo", "Avisos"], chaves.map(function (k) { return [ROTULO_AVISO[k], num(tipos[k] || 0)]; }), [1]));
+
+    var horas = av.horas || [];
+    grafico("g-avisos-horas", {
+      type: "bar",
+      data: { labels: horas.map(function (_, h) { return h + "h"; }), datasets: [barras("Avisos", horas, token("--serie-1"))] },
+      options: opcoesBase({ interaction: { mode: "index", intersect: false } })
+    });
+    $("#t-avisos-horas").replaceChildren(tabela(["Hora", "Avisos"], horas.map(function (v, h) { return [h + "h", num(v)]; }), [1]));
+
+    var ls = av.linhas || [];
+    $("#t-avisos-linhas").replaceChildren(ls.length
+      ? el("div", { class: "tabela-rolagem" }, tabela(["Linha", "Avisos", "Confirmados", "Mais comum"], ls.map(function (l) {
+        return [l.numero + " · " + l.nome, num(l.avisos), num(l.confirmados), ROTULO_AVISO[l.tipoMaisComum] || "—"];
+      }), [1, 2]))
+      : el("p", { class: "vazio", text: "Nenhum aviso no período." }));
+
+    var rec = av.recentes || [];
+    if (!rec.length) {
+      $("#t-avisos-recentes").replaceChildren(el("p", { class: "vazio", text: noServidor
+        ? "Nenhum aviso no período."
+        : "Nenhum aviso enviado neste navegador. No app, abra uma linha e toque em “Avisar problema”." }));
+      return;
+    }
+    var t = tabela(["Quando", "Linha", "Tipo", "Detalhe", "Confirmações", "Situação", ""], [], [4]);
+    var corpo = t.querySelector("tbody");
+    rec.forEach(function (a) {
+      var situacao = a.oculto ? "Oculto" : a.ativo ? "No ar" : "Expirado";
+      var b = el("button", { type: "button", class: "btn btn-mini", text: a.oculto ? "Mostrar" : "Ocultar",
+        "aria-label": (a.oculto ? "Mostrar de novo" : "Ocultar") + " o aviso " + ROTULO_AVISO[a.tipo] + " da linha " + a.linha });
+      b.addEventListener("click", function () {
+        b.disabled = true;
+        (noServidor ? rpc("admin_ocultar_aviso", { p_aviso_id: a.id, p_oculto: !a.oculto }) : ocultarAvisoDemo(a.id, !a.oculto))
+          .then(function () { return carregar(true); }, function () { b.disabled = false; window.alert("Não foi possível mudar este aviso agora."); });
+      });
+      corpo.append(el("tr", { class: a.oculto ? "oculto" : "" },
+        el("td", { text: dataHoraCurta(a.criado_em) }),
+        el("td", { text: a.linha }),
+        el("td", { text: ROTULO_AVISO[a.tipo] + (a.na_viagem ? " · no ônibus" : "") }),
+        el("td", { class: "texto-aviso", text: a.texto || "—" }),
+        el("td", { class: "num", text: num(a.confirmacoes) }),
+        el("td", {}, el("span", { class: "estado-aviso " + (a.oculto ? "oculto" : a.ativo ? "ativo" : ""), text: situacao })),
+        el("td", {}, b)));
+    });
+    $("#t-avisos-recentes").replaceChildren(t);
+  }
+
   function desenharCadastradas() {
     $("#t-cadastradas").replaceChildren(estado.linhas.length
       ? tabela(["Linha", "Nome", "Origem", "Destino", "Tipo"], estado.linhas.map(function (l) {
@@ -505,7 +663,7 @@
   // Troca claro/escuro: redesenha com as cores do novo tema.
   if (window.matchMedia) {
     window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
-      if (estado.dados) desenharPeriodo();
+      if (estado.dados) { desenharPeriodo(); desenharAvisos(estado.avisos); }
       if (estado.mapa) desenharLegendaMapa();
     });
   }
