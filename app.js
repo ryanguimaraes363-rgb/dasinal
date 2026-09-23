@@ -139,9 +139,9 @@
   var telas = {
     home: $("#tela-home"), linhas: $("#tela-linhas"), linha: $("#tela-linha"), mapa: $("#tela-mapa"),
     pontos: $("#tela-pontos"), perfil: $("#tela-perfil"), alarme: $("#tela-alarme"),
-    "meus-pontos": $("#tela-meus-pontos")
+    "meus-pontos": $("#tela-meus-pontos"), conta: $("#tela-conta")
   };
-  var NAV_DA_TELA = { linha: "linhas", alarme: "perfil", "meus-pontos": "perfil" };
+  var NAV_DA_TELA = { linha: "linhas", alarme: "perfil", "meus-pontos": "perfil", conta: "perfil" };
   var telaAtual = null;
   var versaoTela = 0;
   var cancelarTela = [];
@@ -1197,6 +1197,7 @@
     $("#perfil-alarme").textContent = alarme && alarme.ativo ? "Ativo" : "";
     atualizarPerfilConsentimento();
     atualizarCardPontos();
+    atualizarPerfilConta();
   }
 
   function atualizarCardPontos() {
@@ -1209,7 +1210,6 @@
       $("#perfil-pontos-total").textContent = String(r.pontosTotal);
       $("#perfil-barra").style.width = Math.round(r.nivel.progresso * 100) + "%";
       $("#perfil-faltam").textContent = r.nivel.proximo ? "Faltam " + r.nivel.faltam + " para " + r.nivel.proximo.nome : "Nível máximo!";
-      $("#perfil-nome").textContent = r.perfil.apelido || "Visitante";
     }, function () { card.hidden = true; });
   }
 
@@ -1227,9 +1227,18 @@
     var versao = mostrarTela("meus-pontos");
     var caixa = $("#meus-pontos-conteudo");
     if (!caixa.childElementCount) caixa.replaceChildren(el("p", { class: "vazio", text: "Carregando…" }));
-    Promise.all([S.pontos.resumo(), S.pontos.ranking().catch(function () { return null; })]).then(function (r) {
+    Promise.all([S.pontos.resumo(), S.pontos.ranking().catch(function () { return null; }),
+      S.conta.estado().catch(function () { return { tipo: "nenhuma" }; })]).then(function (r) {
       if (versao !== versaoTela) return;
       desenharMeusPontos(r[0], r[1]);
+      // Ainda sem conta e já com pontos: convida a salvar.
+      if (r[2].tipo !== "cadastrada" && r[0].pontosTotal > 0) {
+        caixa.prepend(el("a", { class: "card conta-chamada", href: "#/conta" },
+          el("span", { class: "conta-chamada-icone" }, icone("escudo", 22)),
+          el("span", {}, el("strong", { text: "Salve seus pontos" }),
+            el("small", { text: "Seus " + r[0].pontosTotal + " pontos estão só neste aparelho. Crie um usuário e uma senha para não perdê-los." })),
+          icone("avancar", 20)));
+      }
     }).catch(function () {
       caixa.replaceChildren(el("p", { class: "vazio", text: "Não foi possível carregar seus pontos agora. Verifique sua conexão." }));
     });
@@ -1354,6 +1363,7 @@
       historico);
   }
 
+  var lembrouDeSalvar = false;
   S.pontos.aoMudar(function (ev) {
     // Depois do aviso de fim da viagem.
     setTimeout(function () {
@@ -1362,6 +1372,12 @@
       } else if (ev.tipo === "pontuada") {
         avisar("+" + ev.total + " pontos pela viagem na linha " + ev.linhaNumero + "! Obrigado por ajudar.", true);
         (ev.conquistas || []).forEach(function (c) { avisar("Conquista desbloqueada: " + c.nome, true); });
+        // Uma vez por sessão: lembra de salvar os pontos numa conta.
+        if (!lembrouDeSalvar) S.conta.estado().then(function (est) {
+          if (est.tipo === "cadastrada" || lembrouDeSalvar) return;
+          lembrouDeSalvar = true;
+          setTimeout(function () { avisar("Dica: crie uma conta em Perfil → Minha conta para não perder seus pontos."); }, 2500);
+        });
       } else if (ev.motivo === "limite_viagens_dia") {
         avisar("Viagem validada! Você já chegou ao limite de viagens pontuadas de hoje.");
       } else if (ev.motivo === "nao_validada" && ev.duracaoMs >= 60000) {
@@ -1384,15 +1400,261 @@
   });
 
   $("#btn-excluir-dados").addEventListener("click", function () {
-    if (!window.confirm("Apagar suas viagens compartilhadas, autorizações, avisos, pontos e perfil? Isso não pode ser desfeito.")) return;
+    var cadastrada = $("#perfil-conta").textContent !== "";
+    if (!window.confirm((cadastrada ? "Apagar sua conta e todos os dados dela: " : "Apagar ") +
+      "viagens compartilhadas, autorizações, avisos, pontos e perfil? Isso não pode ser desfeito.")) return;
     S.viagem.excluirMeusDados().then(S.pontos.apagar).then(function () {
-      if (!A.noServidor) A.apagarDemo(); // no servidor, excluir_meus_dados já apaga os avisos
+      if (!A.noServidor) A.apagarDemo(); // no servidor, excluir_meus_dados já apaga os avisos e a conta
+      S.conta.apagar();
       atualizarPerfilConsentimento();
       atualizarCardPontos();
       avisar("Pronto. Seus dados de viagem foram apagados.");
     }, function () {
       avisar("Não foi possível apagar agora. Verifique sua conexão e tente de novo.");
     });
+  });
+
+  // ---------- Minha conta (usuário e senha, opcional) ----------
+
+  var CT = S.conta;
+  var MENSAGENS_CONTA = {
+    usuario_tamanho: "O usuário precisa ter de 3 a 20 caracteres.",
+    usuario_caracteres: "No usuário, use só letras sem acento, números, ponto, hífen ou sublinhado, começando por letra ou número.",
+    usuario_em_uso: "Esse usuário já existe. Escolha outro.",
+    senha_curta: "A senha precisa ter pelo menos 8 caracteres.",
+    senha_longa: "A senha pode ter no máximo 72 caracteres.",
+    senha_fraca: "Essa senha é fácil de adivinhar. Escolha outra.",
+    senhas_diferentes: "As duas senhas não são iguais.",
+    login_invalido: "Usuário ou senha incorretos.",
+    codigo_invalido: "Usuário ou código de recuperação incorretos.",
+    bloqueado: "Muitas tentativas erradas. Espere 15 minutos e tente de novo.",
+    muitas_tentativas: "Muitas tentativas em pouco tempo. Espere um pouco e tente de novo.",
+    ja_cadastrada: "Você já está conectado a uma conta.",
+    conta_anonima: "Crie uma conta primeiro.",
+    confirmacao_ligada: "O cadastro está desativado no servidor agora (confirmação de e-mail ligada no Supabase). Avise a equipe do Dá sinal.",
+    falha: "Não foi possível agora. Verifique sua conexão e tente de novo."
+  };
+
+  function mensagemConta(e) { return MENSAGENS_CONTA[(e && e.codigo) || "falha"] || MENSAGENS_CONTA.falha; }
+
+  function campo(rotulo, input, ajuda) {
+    return el("label", { class: "campo" }, el("span", { text: rotulo }), input, ajuda ? el("small", { class: "campo-ajuda", text: ajuda }) : null);
+  }
+
+  function entrada(tipo, id, extra) {
+    return el("input", Object.assign({ type: tipo, id: id, class: "entrada", autocapitalize: "none", spellcheck: "false" }, extra || {}));
+  }
+
+  // Formulário genérico: campos, botão principal, mensagem de erro e ligações.
+  function formulario(campos, rotuloBotao, aoEnviar) {
+    var erroMsg = el("p", { class: "conta-erro", role: "alert", hidden: "" });
+    var botao = el("button", { type: "submit", class: "btn btn-amarelo btn-bloco", text: rotuloBotao });
+    var f = el("form", { class: "card conta-form", novalidate: "" });
+    campos.forEach(function (c) { f.append(c); });
+    f.append(erroMsg, botao);
+    f.addEventListener("submit", function (e) {
+      e.preventDefault();
+      erroMsg.hidden = true;
+      botao.disabled = true;
+      var texto = botao.textContent;
+      botao.textContent = "Aguarde…";
+      Promise.resolve().then(aoEnviar).catch(function (x) {
+        erroMsg.textContent = mensagemConta(x);
+        erroMsg.hidden = false;
+      }).then(function () { botao.disabled = false; botao.textContent = texto; });
+    });
+    return f;
+  }
+
+  function mostrarSenhas() {
+    var caixa = el("input", { type: "checkbox", class: "conta-mostrar" });
+    caixa.addEventListener("change", function () {
+      caixa.closest("form").querySelectorAll('input[data-senha]').forEach(function (i) { i.type = caixa.checked ? "text" : "password"; });
+    });
+    return el("label", { class: "conta-check" }, caixa, el("span", { text: "Mostrar senha" }));
+  }
+
+  function ligacao(texto, destino) {
+    return el("a", { class: "conta-link", href: "#/conta/" + destino, text: texto });
+  }
+
+  // Quem troca de conta com viagem em andamento: encerra antes.
+  function encerrarViagemAntes() {
+    if (S.viagem.ativa()) S.viagem.encerrar("usuario");
+  }
+
+  function abrirConta(modo) {
+    var versao = mostrarTela("conta");
+    var caixa = $("#conta-conteudo");
+    caixa.replaceChildren(el("p", { class: "vazio", text: "Carregando…" }));
+    Promise.all([CT.estado(), S.pontos.resumo().catch(function () { return null; })]).then(function (r) {
+      if (versao !== versaoTela) return;
+      var est = r[0];
+      var pontos = r[1] ? r[1].pontosTotal : 0;
+      if (est.tipo === "cadastrada") desenharContaConectada(est);
+      else if (modo === "entrar") desenharEntrar(pontos);
+      else if (modo === "recuperar") desenharRecuperar();
+      else desenharCadastro(pontos);
+    }, function () {
+      caixa.replaceChildren(el("p", { class: "vazio", text: MENSAGENS_CONTA.falha }));
+    });
+  }
+
+  function notaDemoConta() {
+    return CT.noServidor ? null : el("p", { class: "nota", text: "Nesta demonstração, a conta fica guardada só neste navegador." });
+  }
+
+  function desenharCadastro(pontos) {
+    var usuario = entrada("text", "ct-usuario", { maxlength: "20", autocomplete: "username" });
+    var senha = entrada("password", "ct-senha", { maxlength: "72", autocomplete: "new-password", "data-senha": "" });
+    var senha2 = entrada("password", "ct-senha2", { maxlength: "72", autocomplete: "new-password", "data-senha": "" });
+    var form = formulario([
+      campo("Usuário", usuario, "De 3 a 20 caracteres: letras sem acento, números, ponto, hífen ou sublinhado. Não aparece no ranking."),
+      campo("Senha", senha, "Pelo menos 8 caracteres."),
+      campo("Repita a senha", senha2),
+      mostrarSenhas()
+    ], "Criar conta e salvar meus pontos", function () {
+      if (senha.value !== senha2.value) throw { codigo: "senhas_diferentes" };
+      encerrarViagemAntes();
+      return CT.criar(usuario.value, senha.value).then(function (r) {
+        desenharCodigo(r.codigo, "Conta criada! Seus pontos agora estão salvos na conta " + CT.normalizar(usuario.value) + ".");
+      });
+    });
+    preencher($("#conta-conteudo"),
+      el("div", { class: "card conta-intro" },
+        el("span", { class: "conta-chamada-icone" }, icone("escudo", 24)),
+        el("div", {},
+          el("h2", { text: "Salve seus pontos" }),
+          el("p", { text: "Com uma conta, seus pontos, conquistas e posição no ranking não se perdem se você trocar de celular ou limpar o navegador. Não pedimos e-mail, telefone nem nome." }),
+          pontos > 0 ? el("p", { class: "conta-destaque", text: "Você tem " + pontos + " pontos neste aparelho. Eles vão junto para a sua conta." }) : null)),
+      form,
+      el("p", { class: "conta-rodape" }, "Já tem conta? ", ligacao("Entrar", "entrar")),
+      notaDemoConta());
+    usuario.focus();
+  }
+
+  function desenharEntrar(pontos) {
+    var usuario = entrada("text", "ct-usuario", { maxlength: "20", autocomplete: "username" });
+    var senha = entrada("password", "ct-senha", { maxlength: "72", autocomplete: "current-password", "data-senha": "" });
+    var form = formulario([
+      campo("Usuário", usuario),
+      campo("Senha", senha),
+      mostrarSenhas()
+    ], "Entrar", function () {
+      encerrarViagemAntes();
+      return CT.entrar(usuario.value, senha.value).then(function () {
+        avisar("Pronto! Você entrou na conta " + CT.normalizar(usuario.value) + ".");
+        location.hash = "#/meus-pontos";
+      });
+    });
+    preencher($("#conta-conteudo"),
+      el("div", { class: "card conta-intro" },
+        el("span", { class: "conta-chamada-icone" }, icone("usuario", 24)),
+        el("div", {},
+          el("h2", { text: "Entrar na sua conta" }),
+          el("p", { text: "Use o usuário e a senha que você criou." }),
+          pontos > 0 ? el("p", { class: "conta-destaque", text: "Atenção: os " + pontos + " pontos deste aparelho não serão somados à conta em que você entrar. Se quiser guardá-los, crie uma conta nova com eles." }) : null)),
+      form,
+      el("p", { class: "conta-rodape" }, ligacao("Esqueci minha senha", "recuperar"), " · ", ligacao("Criar conta", "")),
+      notaDemoConta());
+    usuario.focus();
+  }
+
+  function desenharRecuperar() {
+    var usuario = entrada("text", "ct-usuario", { maxlength: "20", autocomplete: "username" });
+    var codigo = entrada("text", "ct-codigo", { maxlength: "20", autocomplete: "one-time-code", placeholder: "XXXX-XXXX-XXXX", class: "entrada entrada-codigo" });
+    var senha = entrada("password", "ct-senha", { maxlength: "72", autocomplete: "new-password", "data-senha": "" });
+    var senha2 = entrada("password", "ct-senha2", { maxlength: "72", autocomplete: "new-password", "data-senha": "" });
+    var form = formulario([
+      campo("Usuário", usuario),
+      campo("Código de recuperação", codigo, "O código que apareceu quando você criou a conta."),
+      campo("Nova senha", senha, "Pelo menos 8 caracteres."),
+      campo("Repita a nova senha", senha2),
+      mostrarSenhas()
+    ], "Trocar a senha e entrar", function () {
+      if (senha.value !== senha2.value) throw { codigo: "senhas_diferentes" };
+      encerrarViagemAntes();
+      return CT.recuperar(usuario.value, codigo.value, senha.value).then(function (r) {
+        desenharCodigo(r.codigo, "Senha trocada! O código antigo não vale mais: guarde este novo.");
+      });
+    });
+    preencher($("#conta-conteudo"),
+      el("div", { class: "card conta-intro" },
+        el("span", { class: "conta-chamada-icone" }, icone("escudo", 24)),
+        el("div", {},
+          el("h2", { text: "Esqueci minha senha" }),
+          el("p", { text: "Como a conta não usa e-mail, o único jeito de recuperá-la é com o código de recuperação que apareceu no cadastro." }))),
+      form,
+      el("p", { class: "conta-rodape" }, ligacao("Voltar para entrar", "entrar")),
+      notaDemoConta());
+    usuario.focus();
+  }
+
+  // Mostra o código de recuperação uma única vez.
+  function desenharCodigo(codigo, titulo) {
+    var guardei = el("input", { type: "checkbox", id: "ct-guardei" });
+    var pronto = el("button", { type: "button", class: "btn btn-amarelo btn-bloco", text: "Pronto", disabled: "" });
+    guardei.addEventListener("change", function () { pronto.disabled = !guardei.checked; });
+    pronto.addEventListener("click", function () { abrirConta(); });
+    var copiar = el("button", { type: "button", class: "btn btn-contorno btn-pequeno", text: "Copiar código" });
+    copiar.addEventListener("click", function () {
+      (navigator.clipboard ? navigator.clipboard.writeText(codigo) : Promise.reject()).then(function () {
+        avisar("Código copiado. Cole num lugar seguro, como suas notas.");
+      }, function () { avisar("Não deu para copiar. Anote o código à mão."); });
+    });
+    preencher($("#conta-conteudo"),
+      el("div", { class: "card conta-codigo" },
+        el("h2", { text: titulo }),
+        el("p", { text: "Este é o seu código de recuperação. Ele é o único jeito de recuperar a conta se você esquecer a senha. Anote ou tire um print e guarde num lugar seguro: ele não aparece de novo." }),
+        el("p", { class: "codigo-recuperacao", text: codigo, "aria-label": "Código de recuperação: " + codigo.split("").join(" ") }),
+        copiar,
+        el("label", { class: "conta-check" }, guardei, el("span", { text: "Guardei meu código num lugar seguro" })),
+        pronto));
+    window.scrollTo(0, 0);
+  }
+
+  function desenharContaConectada(est) {
+    var novo = el("button", { type: "button", class: "btn btn-contorno btn-bloco", text: "Gerar novo código de recuperação" });
+    novo.addEventListener("click", function () {
+      if (!window.confirm("Gerar um código novo? O código antigo deixa de valer.")) return;
+      CT.novoCodigo().then(function (r) { desenharCodigo(r.codigo, "Novo código de recuperação"); }, function (e) { avisar(mensagemConta(e)); });
+    });
+    var sair = el("button", { type: "button", class: "btn btn-contorno btn-bloco", text: "Sair da conta" });
+    sair.addEventListener("click", function () {
+      if (!window.confirm("Sair da conta neste aparelho? Seus pontos continuam salvos; para vê-los de novo, é só entrar.")) return;
+      encerrarViagemAntes();
+      CT.sair().then(function () { avisar("Você saiu da conta."); location.hash = "#/perfil"; });
+    });
+    preencher($("#conta-conteudo"),
+      el("div", { class: "card conta-intro" },
+        el("span", { class: "conta-chamada-icone ok" }, icone("escudo", 24)),
+        el("div", {},
+          el("h2", { text: "Conectado como " + est.usuario }),
+          el("p", { text: "Seus pontos, conquistas e posição no ranking ficam salvos nesta conta. Em outro celular, é só entrar com o mesmo usuário e senha." }))),
+      el("div", { class: "card conta-acoes" },
+        el("a", { class: "btn btn-primario btn-bloco", href: "#/meus-pontos" }, "Ver meus pontos"),
+        novo, sair),
+      el("p", { class: "nota", text: "Para apagar a conta e todos os dados dela, use “Excluir minha conta e meus dados” em Perfil → Privacidade." }),
+      notaDemoConta());
+  }
+
+  // Perfil: nome, chamada "Salve seus pontos" e texto do botão de exclusão.
+  function atualizarPerfilConta() {
+    CT.estado().then(function (est) {
+      var cadastrada = est.tipo === "cadastrada";
+      $("#perfil-conta").textContent = cadastrada ? est.usuario : "";
+      $("#perfil-sub").textContent = cadastrada ? "Conta " + est.usuario + " · pontos salvos" : "Você usa o Dá sinal sem cadastro.";
+      $("#btn-excluir-dados").textContent = cadastrada ? "Excluir minha conta e meus dados" : "Excluir meus dados de viagem";
+      S.pontos.resumo().then(function (r) {
+        $("#perfil-salvar").hidden = cadastrada || !(r.pontosTotal > 0);
+        $("#perfil-nome").textContent = r.perfil.apelido || (cadastrada ? est.usuario : "Visitante");
+      }, function () { $("#perfil-salvar").hidden = true; });
+    });
+  }
+
+  CT.aoMudar(function () {
+    if (telaAtual === "perfil") abrirPerfil();
+    if (telaAtual === "meus-pontos") abrirMeusPontos();
   });
 
   // ---------- Alarme de ponto ----------
@@ -1539,6 +1801,7 @@
     else if (p === "perfil") abrirPerfil();
     else if (p === "alarme") abrirAlarme(partes[1] || null);
     else if (p === "meus-pontos") abrirMeusPontos();
+    else if (p === "conta") abrirConta(partes[1]);
     else abrirHome();
   }
 
