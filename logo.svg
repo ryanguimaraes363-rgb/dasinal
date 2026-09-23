@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Dá sinal logo">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#F5B301"/>
+      <stop offset="100%" stop-color="#E8A800"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="#0E2F87"/>
+  <circle cx="26" cy="25" r="12" fill="url(#g)"/>
+  <path d="M20 31h12a8 8 0 0 1 8 8v3H12v-3a8 8 0 0 1 8-8Z" fill="#F7F9FF"/>
+  <path d="M17 16.5c0-2.2 1.8-4 4-4h11.5c2.2 0 4 1.8 4 4v4H17v-4Z" fill="#F7F9FF" opacity="0.9"/>
+  <circle cx="20.5" cy="40" r="2.8" fill="#0E2F87"/>
+  <circle cx="35.5" cy="40" r="2.8" fill="#0E2F87"/>
+  <path d="M42 16c5 0 9 4 9 9 0 6.5-9 14-9 14S33 31.5 33 25c0-5 4-9 9-9Z" fill="#F7F9FF" opacity="0.18"/>
+  <path d="M43 20.5c2.8 0 5 2.2 5 5 0 3.9-5 9.3-5 9.3s-5-5.4-5-9.3c0-2.8 2.2-5 5-5Z" fill="#F5B301"/>
+  <circle cx="43" cy="25.5" r="2.1" fill="#0E2F87"/>
+</svg>
