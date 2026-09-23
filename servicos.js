@@ -26,8 +26,18 @@
 
   var configurado = !!CFG.SUPABASE_URL && CFG.SUPABASE_URL.indexOf("COLE_") !== 0 &&
     !!CFG.SUPABASE_ANON_KEY && CFG.SUPABASE_ANON_KEY.indexOf("COLE_") !== 0;
+  // Trava da sessão: uma fila simples dentro da página, no lugar da trava
+  // padrão (navigator.locks). Com a padrão, dois pedidos de sessão no mesmo
+  // instante (ex.: a tela "Minha conta" lendo conta e pontos) às vezes não
+  // liberavam nunca, e todas as chamadas seguintes ficavam esperando.
+  var filaDaSessao = Promise.resolve();
+  function travaDaSessao(_nome, _espera, fn) {
+    var vez = filaDaSessao.then(function () { return fn(); });
+    filaDaSessao = vez.catch(function () { /* a próxima segue mesmo se esta falhar */ });
+    return vez;
+  }
   var client = (configurado && window.supabase)
-    ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY)
+    ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { lock: travaDaSessao } })
     : null;
   var modo = client ? "supabase" : "demo";
 
