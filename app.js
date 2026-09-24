@@ -52,10 +52,11 @@
     return (m / 1000).toFixed(1).replace(".", ",") + " km";
   }
 
-  // Estimativa de chegada a partir da distância pela rota. Com posição
-  // simulada, usa a velocidade da simulação; com GPS real é só uma estimativa.
-  function estimarTempo(m) {
-    var v = (CFG.VELOCIDADE_SIMULADA_KMH || 16) / 3.6;
+  // Estimativa de chegada a partir da distância pela rota. Usa a velocidade
+  // média da linha, se cadastrada (ex.: intermunicipal pela rodovia); senão, a
+  // de um ônibus urbano. É só uma estimativa.
+  function estimarTempo(m, linha) {
+    var v = ((linha && Number(linha.velocidade_media_kmh)) || CFG.VELOCIDADE_SIMULADA_KMH || 16) / 3.6;
     var s = m / v;
     if (s < 45) return "chegando";
     return "~" + Math.max(1, Math.round(s / 60)) + " min";
@@ -204,7 +205,7 @@
         if (pos.indisponivel) { rotuloProx.textContent = "Ônibus"; textoProx.textContent = MSG_INDISPONIVEL; return; }
         if (!pos.proximoPonto) { textoProx.textContent = "Sem informação agora"; return; }
         rotuloProx.textContent = pos.status === "parado" ? "Ônibus parado · próximo ponto" : "Próximo ponto do ônibus";
-        textoProx.textContent = pos.proximoPonto.nome + " · " + estimarTempo(pos.proximoPonto.distancia);
+        textoProx.textContent = pos.proximoPonto.nome + " · " + estimarTempo(pos.proximoPonto.distancia, l);
       }));
     }).catch(function () { textoProx.textContent = "Sem informação agora"; });
     return card;
@@ -378,7 +379,7 @@
       if (!pos.proximoPonto) { agoraTexto.textContent = "Sem informação agora"; return; }
       agoraRotulo.textContent = (pos.proximoPonto.aproximado ? "Ponto mais próximo do ônibus" : "Próximo ponto do ônibus") +
         (pos.confianca ? " · confiança " + ROTULO_CONFIANCA[pos.confianca] : "");
-      agoraTexto.textContent = pos.proximoPonto.nome + " · " + formatarDistancia(pos.proximoPonto.distancia) + " · " + estimarTempo(pos.proximoPonto.distancia);
+      agoraTexto.textContent = pos.proximoPonto.nome + " · " + formatarDistancia(pos.proximoPonto.distancia) + " · " + estimarTempo(pos.proximoPonto.distancia, l);
       if (anterior !== pos.proximoPonto.id) {
         if (anterior != null && itens[anterior]) { itens[anterior].botao.classList.remove("chegando"); itens[anterior].tag.hidden = true; }
         var atual = itens[pos.proximoPonto.id];
@@ -567,7 +568,7 @@
       refs.rotuloProximo.textContent = pos.proximoPonto.aproximado ? "Ponto mais próximo" : "Próximo ponto";
       refs.proximo.textContent = pos.proximoPonto.nome;
       refs.distancia.textContent = formatarDistancia(pos.proximoPonto.distancia);
-      refs.tempo.textContent = estimarTempo(pos.proximoPonto.distancia);
+      refs.tempo.textContent = estimarTempo(pos.proximoPonto.distancia, focoAtual);
     } else {
       refs.proximo.textContent = "—";
       refs.distancia.textContent = "";
