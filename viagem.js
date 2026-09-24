@@ -26,6 +26,10 @@
     PRECISAO_MAX_M: 100,
     AMOSTRA_MOVENDO_MS: 10000,
     AMOSTRA_PARADO_MS: 30000,
+    // Nos primeiros 60 s de uma parada continua lendo como se estivesse andando:
+    // é assim que o estimador vê que o ônibus PAROU NO PONTO (precisa de 2
+    // leituras paradas). Só depois disso economiza bateria.
+    PARADA_DETALHADA_MS: 60000,
     AMOSTRA_MIN_MS: 5000,
     DIST_NOVA_AMOSTRA_M: 50,
     VEL_MOVENDO_MS: 2,
@@ -118,8 +122,11 @@
 
     if (velocidade != null) st.movendo = velocidade >= P.VEL_MOVENDO_MS;
     else if (ultima && dt > 0) st.movendo = d / (dt / 1000) >= P.VEL_MOVENDO_MS;
+    if (st.movendo) st.paradoDesde = null;
+    else if (st.paradoDesde == null) st.paradoDesde = t;
+    st.detalhado = st.movendo || t - st.paradoDesde < P.PARADA_DETALHADA_MS;
 
-    var guardar = !ultima || (st.movendo
+    var guardar = !ultima || (st.detalhado
       ? dt >= P.AMOSTRA_MOVENDO_MS || (d >= P.DIST_NOVA_AMOSTRA_M && dt >= P.AMOSTRA_MIN_MS)
       : dt >= P.AMOSTRA_PARADO_MS);
     if (guardar) {
@@ -151,7 +158,7 @@
     st.fila = st.fila.filter(function (a) { return agora - a.t <= P.FILA_IDADE_MAX_MS; });
     if (st.fila.length > P.FILA_MAX) st.fila = st.fila.slice(-P.FILA_MAX);
     if (!st.fila.length || navigator.onLine === false) return;
-    var intervalo = st.movendo ? P.ENVIO_MOVENDO_MS : P.ENVIO_PARADO_MS;
+    var intervalo = st.detalhado !== false ? P.ENVIO_MOVENDO_MS : P.ENVIO_PARADO_MS;
     if (st.ultimoEnvio && st.fila.length < P.LOTE_MAX && agora - st.ultimoEnvio < intervalo) return;
 
     var lote = st.fila.splice(0, P.LOTE_MAX);
