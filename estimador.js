@@ -65,6 +65,12 @@
     SCORE_MIN_PARTICIPAR: 0.35,   // confiabilidade mínima da viagem para entrar em um grupo
     SCORE_MIN_SOZINHO: 0.6,       // e para, sozinha, gerar uma estimativa
     SOZINHO_MIN_MS: 120000,       // privacidade: 1 pessoa só aparece após 2 min de viagem
+    // Regra de rodovia (só nas linhas marcadas; null = desligada). Na estrada os
+    // pontos são raros, então "parou num ponto" pode ser trocado por tempo andando
+    // NA ROTA em velocidade de veículo. Confiança continua BAIXA para 1 pessoa.
+    // Contra: um carro seguindo a mesma estrada também passaria.
+    RODOVIA_SOZINHO_MS: null,     // ex.: 300000 (5 min)
+    RODOVIA_DUPLA_MS: null,       // ex.: 120000 (2 min)
     MIN_PASSAGEIROS_EXIBIR: 1,
 
     PARADA_MIN_MS: 8000,          // leituras paradas cobrindo pelo menos isso contam como parada
@@ -343,6 +349,10 @@
         limiar = 1.5; // velocidade calculada entre dois pontos tem mais ruído
       }
       if (mem.ultimoS != null) mem.distAcum += Math.abs(difS(rota, mem.ultimoS, r.s));
+      // Tempo andando na rota em velocidade de veículo (regra de rodovia).
+      if (vInst != null && vInst >= cfg.VEL_ONIBUS_MS && mem.ultimoSt != null && r.t > mem.ultimoSt) {
+        mem.andandoMs = (mem.andandoMs || 0) + Math.min(r.t - mem.ultimoSt, 30000);
+      }
 
       // Parada = pelo menos duas leituras seguidas paradas (uma só pode ser ruído do GPS).
       if (vInst != null && vInst < limiar) {
@@ -364,7 +374,7 @@
     return {
       inicio: t, ultimoT: 0, ultimaAmostraT: t, ultimoS: null, ultimoSt: null,
       sentido: 0, score: null, andou: false, paradas: 0, paradasEmPonto: 0, parada: null,
-      distAcum: 0, foraDesde: null, onibusId: null, segundosValidos: 0, validada: false, fim: null, maxJuntos: 0
+      distAcum: 0, andandoMs: 0, foraDesde: null, onibusId: null, segundosValidos: 0, validada: false, fim: null, maxJuntos: 0
     };
   }
 
@@ -647,11 +657,15 @@
     if (g.anterior && g.porMembros) return true;
     var algumAndou = g.membros.some(function (m) { return m.mem.andou; });
     var algumParouEmPonto = g.membros.some(function (m) { return m.mem.paradasEmPonto >= 1; });
+    function andouNaRodovia(limiteMs) {
+      return limiteMs != null && g.membros.some(function (x) { return (x.mem.andandoMs || 0) >= limiteMs; });
+    }
     if (g.membros.length === 1) {
       var m = g.membros[0].mem;
-      return m.score >= cfg.SCORE_MIN_SOZINHO && agora - m.inicio >= cfg.SOZINHO_MIN_MS && m.andou && m.paradasEmPonto >= 1;
+      return m.score >= cfg.SCORE_MIN_SOZINHO && agora - m.inicio >= cfg.SOZINHO_MIN_MS && m.andou &&
+        (m.paradasEmPonto >= 1 || andouNaRodovia(cfg.RODOVIA_SOZINHO_MS));
     }
-    if (g.membros.length === 2) return algumAndou && algumParouEmPonto;
+    if (g.membros.length === 2) return algumAndou && (algumParouEmPonto || andouNaRodovia(cfg.RODOVIA_DUPLA_MS));
     return algumAndou;
   }
 
