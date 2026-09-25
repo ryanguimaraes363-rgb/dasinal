@@ -74,6 +74,11 @@
     FIM_FORA_ROTA_MS: 90000,
     FIM_SEPAROU_M: 300,
     FIM_SEPAROU_MS: 60000,
+    // "Desceu do ônibus" só com leitura RECENTE mostrando a pessoa longe. Leitura
+    // velha (tela apagada, sem sinal na estrada) não prova nada: a 86 km/h,
+    // 10 s de atraso já são 240 m. E a distância tolerada cresce com a velocidade.
+    FIM_SEPAROU_IDADE_MAX_MS: 25000,
+    FIM_SEPAROU_FOLGA_S: 15,
     FIM_PONTO_FINAL_MS: 120000,
     FIM_TEMPO_MAX_MS: 3 * 3600000,
     VALIDAR_SEGUNDOS: 180,        // contribuição mínima para a viagem ser validada
@@ -797,11 +802,15 @@
       var info = infos[id];
       var fim = mem.fim;
 
-      // Longe do ônibus em que estava: só conta se durar (um GPS ruim não encerra a viagem).
-      var longe = !!(info && info.ult && mem.onibusId && ativos[mem.onibusId] && !info.noOnibus &&
-        Math.abs(difS(rota, info.s, ativos[mem.onibusId].s)) > cfg.FIM_SEPAROU_M);
-      if (!longe) mem.separadoDesde = null;
-      else if (mem.separadoDesde == null) mem.separadoDesde = agora;
+      // Longe do ônibus em que estava: só conta se durar (um GPS ruim não encerra a viagem)
+      // e se houver leitura recente. Sem leitura recente, nem começa nem zera a contagem.
+      var bus = mem.onibusId && ativos[mem.onibusId];
+      var podeJulgar = !!(info && info.ult && bus && !info.noOnibus);
+      var recente = podeJulgar && info.idade <= cfg.FIM_SEPAROU_IDADE_MAX_MS;
+      var longe = recente && Math.abs(difS(rota, info.s, bus.s)) >
+        Math.max(cfg.FIM_SEPAROU_M, bus.velocidade * cfg.FIM_SEPAROU_FOLGA_S);
+      if (!podeJulgar || (recente && !longe)) mem.separadoDesde = null;
+      else if (longe && mem.separadoDesde == null) mem.separadoDesde = agora;
 
       if (!fim) {
         if (agora - mem.ultimaAmostraT >= cfg.FIM_INATIVIDADE_MS) fim = "inatividade";

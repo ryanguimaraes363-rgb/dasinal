@@ -34,6 +34,9 @@
     DIST_NOVA_AMOSTRA_M: 50,
     VEL_MOVENDO_MS: 2,
     ENVIO_MOVENDO_MS: 20000,
+    // Na rodovia (acima de ~54 km/h), envia mais vezes: em 20 s o ônibus anda 500 m.
+    ENVIO_RAPIDO_MS: 10000,
+    VEL_RAPIDO_MS: 15,
     ENVIO_PARADO_MS: 60000,
     LOTE_MAX: 6,
     FILA_MAX: 20,
@@ -120,8 +123,11 @@
     var dt = ultima ? t - ultima.t : Infinity;
     var d = ultima ? S.util.distanciaM([ultima.lat, ultima.lng], [c.latitude, c.longitude]) : Infinity;
 
-    if (velocidade != null) st.movendo = velocidade >= P.VEL_MOVENDO_MS;
-    else if (ultima && dt > 0) st.movendo = d / (dt / 1000) >= P.VEL_MOVENDO_MS;
+    var vAgora = velocidade != null ? velocidade : (ultima && dt > 0 ? d / (dt / 1000) : null);
+    if (vAgora != null) {
+      st.movendo = vAgora >= P.VEL_MOVENDO_MS;
+      st.rapido = vAgora >= P.VEL_RAPIDO_MS;
+    }
     if (st.movendo) st.paradoDesde = null;
     else if (st.paradoDesde == null) st.paradoDesde = t;
     st.detalhado = st.movendo || t - st.paradoDesde < P.PARADA_DETALHADA_MS;
@@ -158,7 +164,7 @@
     st.fila = st.fila.filter(function (a) { return agora - a.t <= P.FILA_IDADE_MAX_MS; });
     if (st.fila.length > P.FILA_MAX) st.fila = st.fila.slice(-P.FILA_MAX);
     if (!st.fila.length || navigator.onLine === false) return;
-    var intervalo = st.detalhado !== false ? P.ENVIO_MOVENDO_MS : P.ENVIO_PARADO_MS;
+    var intervalo = st.rapido ? P.ENVIO_RAPIDO_MS : st.detalhado !== false ? P.ENVIO_MOVENDO_MS : P.ENVIO_PARADO_MS;
     if (st.ultimoEnvio && st.fila.length < P.LOTE_MAX && agora - st.ultimoEnvio < intervalo) return;
 
     var lote = st.fila.splice(0, P.LOTE_MAX);
