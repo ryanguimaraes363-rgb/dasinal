@@ -82,11 +82,41 @@ window.DaSinalColaborativo = (function () {
     return { id: alvo.id, nome: alvo.nome, distancia: Math.round(dist), aproximado: aproximado };
   }
 
+  // Ritmo do ônibus para o tempo de chegada: média da velocidade nos últimos
+  // 3 min, com as paradas contando como zero (é o que acontece de fato no
+  // caminho). Com menos de 1 min de histórico, devolve null e o app usa a
+  // velocidade média da linha.
+  var RITMO_JANELA_MS = 180000;
+  var RITMO_MIN_MS = 60000;
+  function registrarRitmo(c, lista, agora) {
+    var h = c.ritmos || (c.ritmos = {});
+    var vivos = {};
+    lista.forEach(function (o) {
+      vivos[o.id] = true;
+      var hist = h[o.id] || (h[o.id] = []);
+      var ult = hist[hist.length - 1];
+      if (!ult || agora - ult.t >= 5000) hist.push({ t: agora, v: o.desatualizado ? 0 : (o.velocidade || 0) });
+      while (hist.length && hist[0].t < agora - RITMO_JANELA_MS) hist.shift();
+    });
+    Object.keys(h).forEach(function (id) { if (!vivos[id]) delete h[id]; });
+  }
+  function ritmoDe(c, id) {
+    var hist = (c.ritmos || {})[id];
+    if (!hist || hist.length < 2 || hist[hist.length - 1].t - hist[0].t < RITMO_MIN_MS) return null;
+    var soma = 0;
+    for (var i = 1; i < hist.length; i++) soma += hist[i - 1].v * (hist[i].t - hist[i - 1].t);
+    return soma / (hist[hist.length - 1].t - hist[0].t);
+  }
+
   function paraPosicao(c, o) {
     return {
       id: o.id,
       lat: o.lat,
       lng: o.lng,
+      // Para o app fazer o ônibus deslizar pela rota entre uma atualização e outra.
+      s: o.s,
+      rota: c.rota,
+      ritmo: ritmoDe(c, o.id),
       status: o.desatualizado ? "sem_sinal" : o.velocidade < 1 ? "parado" : "em_movimento",
       atualizadoEm: new Date(o.ultimaAmostraEm),
       sentido: o.sentido,
@@ -99,7 +129,8 @@ window.DaSinalColaborativo = (function () {
     };
   }
 
-  function montarResultado(c, r) {
+  function montarResultado(c, r, agora) {
+    registrarRitmo(c, r.onibus, agora || Date.now());
     var lista = r.onibus.map(function (o) { return paraPosicao(c, o); });
     lista.sort(function (a, b) { return (a.desatualizado ? 1 : 0) - (b.desatualizado ? 1 : 0) || b.score - a.score; });
     if (!lista.length) {
@@ -129,7 +160,7 @@ window.DaSinalColaborativo = (function () {
 
     var r = E.estimar({ rota: c.rota, amostras: amostras, agora: t, estado: c.estado });
     c.estado = r.estado;
-    c.ultimo = montarResultado(c, r);
+    c.ultimo = montarResultado(c, r, t);
 
     Object.keys(c.viagens).forEach(function (id) {
       var v = c.viagens[id];
@@ -353,7 +384,7 @@ window.DaSinalColaborativo = (function () {
         if (resp.error) throw resp.error;
         var agora = Date.now();
         var lista = (resp.data || []).map(function (r) { return doBanco(f.c, r, agora); }).filter(Boolean);
-        f.ultimo = montarResultado(f.c, { onibus: lista });
+        f.ultimo = montarResultado(f.c, { onibus: lista }, agora);
         f.ouvintes.slice().forEach(function (cb) { cb(f.ultimo); });
       });
   }

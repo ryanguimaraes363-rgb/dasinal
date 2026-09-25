@@ -52,11 +52,14 @@
     return (m / 1000).toFixed(1).replace(".", ",") + " km";
   }
 
-  // Estimativa de chegada a partir da distância pela rota. Usa a velocidade
-  // média da linha, se cadastrada (ex.: intermunicipal pela rodovia); senão, a
-  // de um ônibus urbano. É só uma estimativa.
-  function estimarTempo(m, linha) {
-    var v = ((linha && Number(linha.velocidade_media_kmh)) || CFG.VELOCIDADE_SIMULADA_KMH || 16) / 3.6;
+  // Estimativa de chegada a partir da distância pela rota. Usa, nesta ordem:
+  //   1. o ritmo real do ônibus nos últimos minutos (pos.ritmo, com as paradas);
+  //   2. a velocidade média da linha, se cadastrada (ex.: intermunicipal);
+  //   3. a de um ônibus urbano (config.js).
+  // O ritmo tem um piso (11 km/h): ônibus parado no terminal não vira "~90 min".
+  function estimarTempo(m, linha, pos) {
+    var media = ((linha && Number(linha.velocidade_media_kmh)) || CFG.VELOCIDADE_SIMULADA_KMH || 16) / 3.6;
+    var v = pos && pos.ritmo != null ? Math.max(pos.ritmo, 3) : media;
     var s = m / v;
     if (s < 45) return "chegando";
     return "~" + Math.max(1, Math.round(s / 60)) + " min";
@@ -205,7 +208,7 @@
         if (pos.indisponivel) { rotuloProx.textContent = "Ônibus"; textoProx.textContent = MSG_INDISPONIVEL; return; }
         if (!pos.proximoPonto) { textoProx.textContent = "Sem informação agora"; return; }
         rotuloProx.textContent = pos.status === "parado" ? "Ônibus parado · próximo ponto" : "Próximo ponto do ônibus";
-        textoProx.textContent = pos.proximoPonto.nome + " · " + estimarTempo(pos.proximoPonto.distancia, l);
+        textoProx.textContent = pos.proximoPonto.nome + " · " + estimarTempo(pos.proximoPonto.distancia, l, pos);
       }));
     }).catch(function () { textoProx.textContent = "Sem informação agora"; });
     return card;
@@ -379,7 +382,7 @@
       if (!pos.proximoPonto) { agoraTexto.textContent = "Sem informação agora"; return; }
       agoraRotulo.textContent = (pos.proximoPonto.aproximado ? "Ponto mais próximo do ônibus" : "Próximo ponto do ônibus") +
         (pos.confianca ? " · confiança " + ROTULO_CONFIANCA[pos.confianca] : "");
-      agoraTexto.textContent = pos.proximoPonto.nome + " · " + formatarDistancia(pos.proximoPonto.distancia) + " · " + estimarTempo(pos.proximoPonto.distancia, l);
+      agoraTexto.textContent = pos.proximoPonto.nome + " · " + formatarDistancia(pos.proximoPonto.distancia) + " · " + estimarTempo(pos.proximoPonto.distancia, l, pos);
       if (anterior !== pos.proximoPonto.id) {
         if (anterior != null && itens[anterior]) { itens[anterior].botao.classList.remove("chegando"); itens[anterior].tag.hidden = true; }
         var atual = itens[pos.proximoPonto.id];
@@ -509,6 +512,50 @@
     });
   }
 
+  // ---------- Ônibus deslizando pela rota entre uma atualização e outra ----------
+  // A posição chega a cada ~10 s. Entre uma e outra, o marcador segue pela rota
+  // na velocidade atual (no máximo 15 s adiante). Se a atualização seguinte vier
+  // um pouco atrás de onde o marcador já está, ele não volta: espera o ônibus.
+  var DESLIZAR_MAX_S = 15;
+  var RECUO_MAX_M = 150;
+  var UE = window.DaSinalEstimador && window.DaSinalEstimador.util;
+
+  function sentidoNaRota(o) {
+    if (o.rota && o.rota.circular) return 1;
+    return o.sentido === "ida" ? 1 : o.sentido === "volta" ? -1 : 0;
+  }
+
+  function sExibido(m) {
+    var d = m._desliza;
+    if (!d) return null;
+    var s = d.s + d.v * Math.min((Date.now() - d.t0) / 1000, DESLIZAR_MAX_S);
+    return d.rota.circular ? UE.normalizarS(d.rota, s) : Math.max(0, Math.min(d.rota.total, s));
+  }
+
+  // Devolve true se o marcador deve ficar onde está (não recuar).
+  function prepararDeslize(m, o) {
+    var dir = sentidoNaRota(o);
+    if (!UE || !o.rota || o.s == null || !dir || o.desatualizado || !(o.velocidade >= 1)) { m._desliza = null; return false; }
+    var base = o.s;
+    var atual = m._desliza && m._desliza.rota === o.rota ? sExibido(m) : null;
+    if (atual != null) {
+      var afrente = UE.difS(o.rota, atual, o.s) * dir;
+      if (afrente < 0 && afrente > -RECUO_MAX_M) base = atual;
+    }
+    m._desliza = { rota: o.rota, s: base, v: o.velocidade * dir, t0: Date.now() };
+    return true;
+  }
+
+  setInterval(function () {
+    if (telaAtual !== "mapa" || document.hidden) return;
+    Object.keys(marcadoresOnibus).forEach(function (k) {
+      Object.keys(marcadoresOnibus[k]).forEach(function (id) {
+        var m = marcadoresOnibus[k][id];
+        if (m._desliza) moverMarcador(m, UE.posicaoEm(m._desliza.rota, sExibido(m)), 1000);
+      });
+    });
+  }, 1000);
+
   function aoPosicaoOnibus(linha, cor, pos) {
     // Posição simulada / GPS: um ônibus por linha. Colaborativa: a lista estimada.
     var lista = pos.onibus || (pos.lat != null ? [Object.assign({ id: "_" }, pos)] : []);
@@ -524,8 +571,10 @@
         m.bindPopup(function (camada) { return popupOnibus(linha, camada._dados); });
         m.on("click", function () { S.eventos.registrar({ tipo: "interacao_linha", linha_id: linha.id }); });
         grupo[o.id] = m;
+        prepararDeslize(m, o);
       } else {
-        moverMarcador(m, ll, S.posicao.intervaloMs);
+        // Deslizando: o relógio de 1 s acima leva o marcador; senão, anima até a posição nova.
+        if (!prepararDeslize(m, o)) moverMarcador(m, ll, S.posicao.intervaloMs);
         if (m._chaveIcone !== chaveIcone) m.setIcon(iconeOnibus(cor, o));
       }
       m._dados = o;
@@ -568,7 +617,7 @@
       refs.rotuloProximo.textContent = pos.proximoPonto.aproximado ? "Ponto mais próximo" : "Próximo ponto";
       refs.proximo.textContent = pos.proximoPonto.nome;
       refs.distancia.textContent = formatarDistancia(pos.proximoPonto.distancia);
-      refs.tempo.textContent = estimarTempo(pos.proximoPonto.distancia, focoAtual);
+      refs.tempo.textContent = estimarTempo(pos.proximoPonto.distancia, focoAtual, pos);
     } else {
       refs.proximo.textContent = "—";
       refs.distancia.textContent = "";
