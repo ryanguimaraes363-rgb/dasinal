@@ -471,7 +471,9 @@
 
   // Enquadra a rota deixando livre a área coberta pelo painel
   // (embaixo no celular, à esquerda no computador).
+  var ultimoEnquadramento = null; // para reenquadrar quando o painel abre ou recolhe
   function enquadrar(pontos) {
+    ultimoEnquadramento = pontos;
     var sheet = $("#sheet");
     var lateral = window.matchMedia("(min-width: 900px)").matches;
     var cima = [40, 40];
@@ -485,8 +487,11 @@
     if (marcador._anim) cancelAnimationFrame(marcador._anim);
     var de = marcador.getLatLng();
     var t0 = performance.now();
-    function passo(t) {
-      var k = Math.min(1, (t - t0) / duracao);
+    // O mesmo relógio no começo e em cada quadro, e o progresso preso entre 0 e 1:
+    // o horário que o navegador passa ao quadro pode ser anterior a t0, e aí o
+    // marcador era jogado para trás do ponto de partida.
+    function passo() {
+      var k = Math.max(0, Math.min(1, (performance.now() - t0) / duracao));
       marcador.setLatLng([de.lat + (para[0] - de.lat) * k, de.lng + (para[1] - de.lng) * k]);
       if (k < 1) marcador._anim = requestAnimationFrame(passo);
     }
@@ -640,6 +645,32 @@
     b.title = b.getAttribute("aria-label");
   }
 
+  // Painel do mapa que recolhe: fica só a primeira linha (topo) e o mapa aparece.
+  // A escolha fica guardada neste aparelho e vale para todas as linhas.
+  var CHAVE_PAINEL = "dasinal.painel.recolhido";
+
+  function preencherPainel(topo, corpo) {
+    var sheet = $("#sheet");
+    var caixaCorpo = el("div", { class: "sheet-corpo", id: "sheet-corpo" });
+    corpo.filter(Boolean).forEach(function (n) { caixaCorpo.append(n); });
+    var botao = el("button", { type: "button", class: "sheet-alca", "aria-controls": "sheet-corpo" });
+    function aplicar(recolhido) {
+      sheet.classList.toggle("recolhido", recolhido);
+      caixaCorpo.hidden = recolhido;
+      botao.setAttribute("aria-expanded", String(!recolhido));
+      botao.replaceChildren(el("span", { class: "sheet-alca-risco", "aria-hidden": "true" }),
+        el("span", { class: "sheet-alca-texto" }, icone("avancar", 16), recolhido ? "Mostrar detalhes" : "Ocultar detalhes"));
+    }
+    botao.addEventListener("click", function () {
+      var recolher = !sheet.classList.contains("recolhido");
+      gravarLocal(CHAVE_PAINEL, recolher);
+      aplicar(recolher);
+      if (mapa && ultimoEnquadramento) enquadrar(ultimoEnquadramento);
+    });
+    aplicar(!!lerLocal(CHAVE_PAINEL, false));
+    preencher(sheet, botao, topo, caixaCorpo);
+  }
+
   function montarSheetLinha(linha, pontos, cor, marcadoresPonto, fonteRota) {
     refs = {
       status: el("span", {}, pillStatus("sem_sinal")),
@@ -671,11 +702,11 @@
       rotuloParadas(!lista.hidden);
     });
 
-    preencher($("#sheet"),
+    preencherPainel(
       el("div", { class: "sheet-prox" },
         el("span", { class: "sheet-prox-icone" }, icone("bus", 22)),
         el("span", { class: "sheet-prox-texto" }, refs.rotuloProximo, refs.proximo),
-        el("span", { class: "sheet-dist" }, refs.distancia, refs.tempo)),
+        el("span", { class: "sheet-dist" }, refs.distancia, refs.tempo)), [
       el("div", { class: "sheet-meta" }, refs.status, refs.hora),
       refs.confianca,
       S.viagem.disponivel() ? el("div", { class: "sheet-viagem" }, botaoViagem(linha, function (c) { assinaturas.push(c); })) : null,
@@ -683,7 +714,7 @@
       verParadas,
       lista,
       notaPosicao(),
-      fonteRota === "reta" ? el("p", { class: "nota", text: "Não foi possível calcular o trajeto pelas ruas agora. Mostrando uma linha reta entre os pontos." }) : null);
+      fonteRota === "reta" ? el("p", { class: "nota", text: "Não foi possível calcular o trajeto pelas ruas agora. Mostrando uma linha reta entre os pontos." }) : null]);
     return marcadoresPonto;
   }
 
@@ -693,10 +724,7 @@
       chips.append(el("a", { class: "chip-linha", href: "#/mapa/" + l.id, style: "--cor:" + S.util.corDaLinha(l) },
         badgeLinha(l, true), el("strong", { text: l.nome })));
     });
-    preencher($("#sheet"),
-      el("h2", { text: "Linhas no mapa" }),
-      chips,
-      notaPosicao());
+    preencherPainel(el("h2", { text: "Linhas no mapa" }), [chips, notaPosicao()]);
   }
 
   function notaPosicao() {
