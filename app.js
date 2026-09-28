@@ -856,9 +856,19 @@
     if (ultimoFocoAntesDoModal && ultimoFocoAntesDoModal.focus) ultimoFocoAntesDoModal.focus();
   }
 
+  // Navegador dentro de outro app (Instagram, Facebook…): muitos não liberam a localização.
+  var avisouEmbutido = false;
+  function avisarNavegadorEmbutido() {
+    var app = S.gps && S.gps.navegadorEmbutido();
+    if (!app || avisouEmbutido) return;
+    avisouEmbutido = true;
+    avisar("Você abriu o Dá sinal dentro do " + app + ". Se a localização não funcionar, abra o link no Chrome ou no Safari (menu ⋮ ou ⋯ → Abrir no navegador).", true);
+  }
+
   function alternarLocalizacao() {
     if (S.localizacao.ativa()) { pararLocalizacao(false); return; }
     if (!S.localizacao.disponivel()) { avisar("Seu navegador não oferece localização. O restante do app continua funcionando."); return; }
+    avisarNavegadorEmbutido();
     // Se o navegador já tem a permissão, iniciamos direto (a pessoa acabou de tocar no botão).
     S.localizacao.permissaoJaConcedida().then(function (concedida) {
       if (concedida) iniciarLocalizacao(); else abrirModalLocalizacao();
@@ -866,6 +876,7 @@
   }
 
   function iniciarLocalizacao() {
+    avisouErroLoc = {};
     S.localizacao.iniciar(aoPosicaoUsuario, aoErroLocalizacao);
     atualizarBotoesLoc();
   }
@@ -891,9 +902,22 @@
     }
   }
 
+  // Erros do botão "Minha localização". 2 e 3 não desligam: o navegador continua
+  // tentando, então o aviso aparece uma vez só por ativação.
+  var avisouErroLoc = {};
   function aoErroLocalizacao(err) {
+    var code = err ? err.code : 0;
     atualizarBotoesLoc();
-    if (err && err.code === 1) avisar("A permissão de localização foi negada. O app continua funcionando sem ela.");
+    if (code === 1) {
+      avisar("A permissão de localização foi negada. Para usar, libere a localização deste site nas configurações do navegador (ícone de cadeado ou “Aa” ao lado do endereço).", true);
+      return;
+    }
+    if (code === 0) { avisar("Seu navegador não oferece localização. Abra o Dá sinal no Chrome ou no Safari."); return; }
+    if (code === -1) { avisar("A localização só funciona no endereço seguro (https) do Dá sinal."); return; }
+    if (avisouErroLoc[code]) return;
+    avisouErroLoc[code] = true;
+    if (code === 2) avisar("O celular não conseguiu determinar sua localização. Confira se a localização (GPS) está ligada. Continuamos tentando.");
+    else if (code === 3) avisar("Sua localização está demorando para chegar. Continuamos tentando…");
     else avisar("Não foi possível obter sua localização agora.");
   }
 
@@ -922,7 +946,8 @@
     inatividade: "Não recebemos sua localização por alguns minutos. A viagem foi encerrada.",
     sem_sinal_gps: "Não conseguimos obter sua localização. A viagem foi encerrada.",
     tempo_max: "Sua viagem passou de 3 horas e foi encerrada.",
-    permissao_negada: "A permissão de localização foi negada. Sem ela não dá para compartilhar a viagem.",
+    permissao_negada: "A permissão de localização foi negada. Para compartilhar a viagem, libere a localização deste site nas configurações do navegador e toque de novo em “Estou neste ônibus”.",
+    gps_impreciso: "O GPS ficou impreciso por muito tempo e a viagem foi encerrada. Tente de novo perto da janela e com a localização precisa ligada.",
     viagem_desconhecida: "Sua viagem foi encerrada. Toque em “Estou neste ônibus” para começar outra.",
     consentimento_revogado: "Autorização retirada. Paramos de compartilhar sua localização."
   };
@@ -956,6 +981,7 @@
       S.viagem.encerrar("trocou_de_linha");
     }
     if (!S.viagem.disponivel()) { avisar("Seu navegador não oferece localização. O restante do app continua funcionando."); return; }
+    avisarNavegadorEmbutido();
     var demo = window.DaSinalColaborativo.simulando();
     // Com o consentimento já dado, só a demonstração pergunta de novo (para escolher o GPS simulado).
     if (S.viagem.consentimentoAceito() && !demo) { iniciarViagem(linha, false); return; }
@@ -975,13 +1001,15 @@
   }
 
   function iniciarViagem(linha, simularGps) {
-    S.viagem.iniciar(linha, { simularGps: simularGps }).then(function () {
-      avisar("Obrigado! Sua localização está ajudando a mostrar o ônibus da linha " + linha.numero + ". Mantenha o app aberto.");
-    }, function (erro) {
+    // O "Obrigado" só aparece quando chega a primeira posição boa (ver S.viagem.aoMudar
+    // abaixo): antes disso o navegador ainda pode estar pedindo a permissão.
+    S.viagem.iniciar(linha, { simularGps: simularGps }).then(function () {}, function (erro) {
       var codigo = erro && erro.codigo;
       var mensagem = String((erro && erro.message) || "");
-      if (codigo === "ja_ativa") return;
-      if (codigo === "sem_suporte") avisar("Seu navegador não oferece localização.");
+      if (codigo === "ja_ativa" || codigo === "cancelada") return;
+      if (codigo === "permissao_negada") return; // a mensagem já apareceu no fim da viagem
+      if (codigo === "sem_suporte") avisar("Seu navegador não oferece localização. Abra o Dá sinal no Chrome ou no Safari.");
+      else if (codigo === "sem_https") avisar("A localização só funciona no endereço seguro (https) do Dá sinal.");
       else if (mensagem.indexOf("limite_diario") >= 0) avisar("Você atingiu o limite de viagens compartilhadas de hoje. Obrigado por ajudar!");
       else if (mensagem.indexOf("linha_invalida") >= 0) avisar("Esta linha não está disponível para compartilhar agora.");
       else avisar("Não foi possível começar a compartilhar agora. Verifique sua conexão e tente de novo.");
@@ -1003,8 +1031,12 @@
   function textoSituacaoViagem(v) {
     var s = v.situacao;
     var sufixo = v.simulada ? " (localização simulada)" : "";
-    if (v.gpsFraco) return "Sinal de GPS fraco. Tentando de novo…" + sufixo;
-    if (v.semSinal) return "Procurando o sinal de GPS…" + sufixo;
+    // As três situações do GPS (viagem.js): sem posição, posição imprecisa, posição boa.
+    if (v.estadoGps === "indisponivel") return "O celular não conseguiu sua localização. Confira se a localização (GPS) está ligada." + sufixo;
+    if (v.estadoGps === "procurando") return "Procurando o sinal de GPS…" + sufixo;
+    if (v.estadoGps === "impreciso") return "GPS impreciso" + (v.precisao ? " (±" + v.precisao + " m)" : "") +
+      ". Aguardando melhorar: fique perto da janela." + sufixo;
+    if (!v.viagemId) return "Começando a compartilhar…" + sufixo;
     if (!s) return "Enviando sua localização…" + sufixo;
     if (s.onibusId && v.onibus) {
       var outros = v.onibus.qtdPassageiros - 1;
@@ -1029,8 +1061,13 @@
 
   $("#faixa-sair").addEventListener("click", function () { S.viagem.encerrar("usuario"); });
 
+  var agradecida = null; // viagem que já recebeu o "Obrigado"
   S.viagem.aoMudar(function (v, evento) {
     atualizarFaixaViagem(v);
+    if (v && v.viagemId && v.estadoGps === "ok" && agradecida !== v.viagemId) {
+      agradecida = v.viagemId;
+      avisar("Obrigado! Sua localização está ajudando a mostrar o ônibus da linha " + v.linhaNumero + ". Mantenha o app aberto.");
+    }
     if (evento && evento.tipo === "fim" && FIM_VIAGEM[evento.motivo]) {
       avisar(FIM_VIAGEM[evento.motivo], evento.motivo !== "usuario");
     }

@@ -241,7 +241,8 @@
   // Viagem terminou -> pontua (se foi validada). Retirar a autorização não pontua.
   if (S.viagem) {
     S.viagem.aoMudar(function (v, ev) {
-      if (!ev || ev.tipo !== "fim" || ev.motivo === "consentimento_revogado") return;
+      // Sem viagemId: terminou antes de o servidor criar a viagem (ex.: permissão negada).
+      if (!ev || ev.tipo !== "fim" || !ev.viagemId || ev.motivo === "consentimento_revogado") return;
       backend.pontuar(ev);
     });
   }

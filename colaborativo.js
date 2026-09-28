@@ -166,7 +166,9 @@ window.DaSinalColaborativo = (function () {
       var v = c.viagens[id];
       if (v.fim) return;
       v.situacao = r.viagens[id] || null;
-      if (v.situacao && v.situacao.sugerirFim) v.fim = v.situacao.sugerirFim;
+      // Como no servidor (010): sem leitura boa, mas com sinal de vida recente, não é "inatividade".
+      var inativaMasViva = v.situacao && v.situacao.sugerirFim === "inatividade" && v.ultimoSinal && t - v.ultimoSinal < 60000;
+      if (v.situacao && v.situacao.sugerirFim && !inativaMasViva) v.fim = v.situacao.sugerirFim;
       var onibus = v.situacao && v.situacao.onibusId
         ? c.ultimo.onibus.filter(function (o) { return o.id === v.situacao.onibusId; })[0] || null
         : null;
@@ -244,13 +246,14 @@ window.DaSinalColaborativo = (function () {
       });
     },
 
-    // lote: [{ lat, lng, precisao, velocidade, direcao, t }]
+    // lote: [{ lat, lng, precisao, velocidade, direcao, t }] (pode vir vazio: "ainda estou aqui")
     enviar: function (viagemId, lote) {
       var c = centralDaViagem[viagemId];
       if (!c) return Promise.resolve({ encerrada: "viagem_desconhecida" });
       var v = c.viagens[viagemId];
       if (v.fim) return Promise.resolve({ encerrada: v.fim });
       var agora = Date.now();
+      v.ultimoSinal = agora;
       // As mesmas checagens que o servidor fará: horário plausível e precisão mínima.
       lote.forEach(function (a) {
         if (a.t > agora + 5000 || a.t < agora - 120000 || !(a.precisao <= 100)) return;
@@ -488,8 +491,9 @@ window.DaSinalColaborativo = (function () {
         });
       }).then(function (id) { return { viagemId: id }; });
     },
-    enviar: function (viagemId, lote) {
-      return rpc("enviar_localizacoes", { p_viagem_id: viagemId, p_lote: lote }).then(function (d) {
+    // diag: só contagens do GPS (leituras, imprecisas, erros), nunca coordenadas (010).
+    enviar: function (viagemId, lote, diag) {
+      return rpc("enviar_localizacoes", { p_viagem_id: viagemId, p_lote: lote, p_diag: diag || null }).then(function (d) {
         return { encerrada: (d && d.encerrada) || null };
       });
     },

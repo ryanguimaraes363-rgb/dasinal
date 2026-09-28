@@ -588,6 +588,17 @@ body.com-viagem #avisos { bottom: calc(var(--nav-h) + var(--faixa-h) + env(safe-
 .historico-viagem li span:last-child { font-weight: 800; color: var(--texto); }
 .historico-viagem li.negativo span:last-child { color: #B3261E; }
 
+/* ---------- Diagnóstico do GPS (só com ?diag=1) ---------- */
+
+.diag-gps {
+  position: fixed; top: 76px; left: 8px; right: 8px; z-index: 3000; max-width: 420px;
+  background: rgba(7, 26, 54, .92); color: #E8F0FF; border-radius: 12px; padding: .5rem .7rem;
+  box-shadow: var(--sombra-forte); pointer-events: auto;
+}
+.diag-gps pre { margin: 0; font: 600 .7rem/1.35 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; }
+.diag-gps button { float: right; border: none; background: none; color: #fff; font-size: 1.2rem; line-height: 1; padding: 0 .2rem; }
+.diag-gps.mini pre { max-height: 1.1em; overflow: hidden; }
+
 /* ---------- Minha conta ---------- */
 
 .conta-chamada { display: flex; align-items: center; gap: .9rem; padding: .9rem 1rem; margin-bottom: 1rem; color: var(--navy-900); border-left: 4px solid var(--amarelo); }

@@ -223,9 +223,49 @@
     }
   };
 
+  // ---------- Diagnóstico do GPS (só com ?diag=1 no endereço) ----------
+  // Mensagens no console e o painel de diagnostico-gps.js. Nada disso vai para
+  // o banco nem para o localStorage.
+  var DIAG_GPS = /[?&]diag=1(&|$)/.test(window.location.search);
+  function logGps() {
+    if (!DIAG_GPS || !window.console) return;
+    console.info.apply(console, ["[DáSinal GPS]"].concat(Array.prototype.slice.call(arguments)));
+  }
+
+  // Navegador dentro de outro aplicativo (Instagram, Facebook…): muitos não
+  // oferecem localização ou não mostram o pedido de permissão.
+  function navegadorEmbutido() {
+    var ua = navigator.userAgent || "";
+    if (/Instagram/i.test(ua)) return "Instagram";
+    if (/FBAN|FBAV|FB_IAB|FBIOS/i.test(ua)) return "Facebook";
+    if (/WhatsApp/i.test(ua)) return "WhatsApp";
+    if (/TikTok|musical_ly|BytedanceWebview/i.test(ua)) return "TikTok";
+    if (/\bLine\//.test(ua)) return "Line";
+    if (/Android/i.test(ua) && /; wv\)/.test(ua)) return "outro aplicativo";
+    return null;
+  }
+
+  // Só informação (diagnóstico). NUNCA decide se o GPS pode ser pedido.
+  function estadoPermissao() {
+    try {
+      if (navigator.permissions && navigator.permissions.query) {
+        return navigator.permissions.query({ name: "geolocation" }).then(function (r) { return r.state; }, function () { return "desconhecido"; });
+      }
+    } catch (e) { /* sem suporte */ }
+    return Promise.resolve("desconhecido");
+  }
+
+  // Opções do GPS. enableHighAccuracy fica ligado: sem ele o celular usa antena
+  // ou Wi-Fi, com centenas de metros de erro, o que não serve para o ônibus.
+  // O timeout vale para cada tentativa: vencido, o watchPosition continua tentando
+  // (o app só avisa "ainda procurando"); o GPS "frio" pode passar de 20 s.
+  var OPCOES_GPS_MAPA = { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 };
+  var NOME_ERRO_GPS = { 1: "PERMISSION_DENIED", 2: "POSITION_UNAVAILABLE", 3: "TIMEOUT" };
+
   // ---------- Geolocalização (somente com consentimento) ----------
 
-  var loc = { watchId: null, ultima: null, contou: false };
+  var loc = { watchId: null, ultima: null, contou: false,
+    diag: { estado: "desligada", leituras: 0, precisao: null, erro: null, inicio: null } };
 
   var localizacao = {
     disponivel: function () { return !!navigator.geolocation; },
@@ -237,24 +277,35 @@
       return (loc.watchId !== null && loc.ultima) ? celulaRegiao(loc.ultima[0], loc.ultima[1]) : null;
     },
 
+    // Só para decidir se o aviso de privacidade precisa aparecer de novo (quando o
+    // navegador já deu a permissão, não pergunta duas vezes). Se a consulta não
+    // existir ou falhar, mostra o aviso, e "Permitir" chama o GPS direto.
     permissaoJaConcedida: function () {
-      try {
-        if (navigator.permissions && navigator.permissions.query) {
-          return navigator.permissions.query({ name: "geolocation" }).then(
-            function (r) { return r.state === "granted"; },
-            function () { return false; });
-        }
-      } catch (e) { /* navegador sem suporte */ }
-      return Promise.resolve(false);
+      return estadoPermissao().then(function (s) { return s === "granted"; });
     },
+    estadoPermissao: estadoPermissao,
 
-    // Chame somente depois que a pessoa clicou em "Permitir localização".
+    // Chame somente depois que a pessoa tocou no botão (e, na primeira vez,
+    // em "Permitir localização"). Chama o watchPosition NA HORA: quem mostra o
+    // pedido de permissão é o próprio navegador.
+    // aoErro recebe { code }: 1 negada, 2 indisponível, 3 demorou (continua
+    // tentando), 0 sem suporte, -1 endereço sem https.
     iniciar: function (aoPosicao, aoErro) {
+      logGps("pedido de localização (mapa) | suporte:", !!navigator.geolocation,
+        "| https:", window.isSecureContext, "| navegador de aplicativo:", navegadorEmbutido() || "não");
       if (!navigator.geolocation) { aoErro({ code: 0 }); return; }
+      if (window.isSecureContext === false) { aoErro({ code: -1 }); return; }
       if (loc.watchId !== null) return;
+      loc.diag = { estado: "procurando", leituras: 0, precisao: null, erro: null, inicio: Date.now() };
+      estadoPermissao().then(function (s) { logGps("permissão (informativo):", s); });
       loc.watchId = navigator.geolocation.watchPosition(
         function (p) {
           loc.ultima = [p.coords.latitude, p.coords.longitude];
+          loc.diag.estado = "ok";
+          loc.diag.leituras++;
+          loc.diag.precisao = Math.round(p.coords.accuracy);
+          logGps("posição (mapa) lat", p.coords.latitude, "lng", p.coords.longitude,
+            "precisão", Math.round(p.coords.accuracy) + " m", "horário", new Date(p.timestamp).toISOString());
           if (!loc.contou) {
             loc.contou = true;
             eventos.registrar({ tipo: "localizacao_permitida" });
@@ -262,21 +313,32 @@
           aoPosicao(loc.ultima);
         },
         function (err) {
-          if (err && err.code === 1) {
+          var code = err ? err.code : 0;
+          loc.diag.erro = { code: code, nome: NOME_ERRO_GPS[code] || "?", mensagem: err && err.message, em: Date.now() };
+          if (loc.diag.estado !== "ok") loc.diag.estado = code === 2 ? "indisponivel" : code === 3 ? "procurando" : "erro";
+          logGps("erro (mapa)", code, NOME_ERRO_GPS[code] || "", err && err.message);
+          if (code === 1) {
             localizacao.parar();
+            loc.diag.estado = "negada";
             eventos.registrar({ tipo: "localizacao_negada" });
           }
-          aoErro(err);
+          aoErro(err || { code: 0 });
         },
-        { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }
+        OPCOES_GPS_MAPA
       );
+      logGps("watchPosition chamado (mapa), id", loc.watchId, "opções", JSON.stringify(OPCOES_GPS_MAPA));
     },
 
     parar: function () {
       if (loc.watchId !== null && navigator.geolocation) navigator.geolocation.clearWatch(loc.watchId);
+      if (loc.watchId !== null) logGps("watch parado (mapa), id", loc.watchId);
       loc.watchId = null;
       loc.ultima = null;
+      if (loc.diag.estado !== "negada") loc.diag.estado = "desligada";
     },
+
+    // Para o painel de diagnóstico (?diag=1).
+    diag: function () { return loc.diag; },
 
     // A pessoa escolheu "Agora não".
     recusar: function () { eventos.registrar({ tipo: "localizacao_negada" }); }
@@ -654,6 +716,8 @@
     dados: dados,
     eventos: eventos,
     localizacao: localizacao,
+    // Diagnóstico do GPS (?diag=1): log no console e dados para o painel.
+    gps: { diagnostico: DIAG_GPS, log: logGps, navegadorEmbutido: navegadorEmbutido, estadoPermissao: estadoPermissao },
     posicao: posicao,
     agregar: agregar,
     gerarExemplo: gerarExemplo,

@@ -41,10 +41,18 @@
     LOTE_MAX: 6,
     FILA_MAX: 20,
     FILA_IDADE_MAX_MS: 120000,
-    SEM_GPS_MAX_MS: 180000,
+    SEM_GPS_MAX_MS: 180000,       // nenhuma posição do GPS por 3 min: encerra ("sem_sinal_gps")
+    // Só posições imprecisas (pior que PRECISAO_MAX_M) por 10 min: encerra ("gps_impreciso").
+    // Até lá a viagem continua e o app avisa o servidor que está vivo (lote vazio).
+    GPS_IMPRECISO_MAX_MS: 600000,
+    SINAL_DE_VIDA_MS: 30000,
     DURACAO_MAX_MS: 3 * 3600000,
     VERIFICAR_MS: 5000
   };
+  // enableHighAccuracy ligado: sem ele o celular usa antena/Wi-Fi (centenas de metros).
+  var OPCOES_GPS = { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 };
+  var NOME_ERRO_GPS = { 1: "PERMISSION_DENIED", 2: "POSITION_UNAVAILABLE", 3: "TIMEOUT" };
+  function logGps() { if (S.gps) S.gps.log.apply(null, arguments); }
 
   var VERSAO_CONSENTIMENTO = "2026-09-23";
   var CHAVE_CONSENTIMENTO = "dasinal.consentimento.viagem";
@@ -66,6 +74,30 @@
 
   function backend() { return window.DaSinalColaborativo && window.DaSinalColaborativo.viagens; }
 
+  // O que o GPS está fazendo, separado em três situações (e mais duas de erro):
+  //   "procurando"   nenhuma posição ainda (ou o GPS demorou: TIMEOUT)
+  //   "indisponivel" o celular disse que não consegue localizar (GPS desligado?)
+  //   "impreciso"    há posições, mas piores que PRECISAO_MAX_M: descartadas
+  //   "ok"           posições boas sendo aceitas
+  function estadoGps(s) {
+    if (s.simulada) return "ok";
+    if (!s.ultimaLeitura) return s.ultimoErro === 2 ? "indisponivel" : "procurando";
+    if (!s.ultimaFix || s.ultimaLeitura - s.ultimaFix > 15000) return "impreciso";
+    return "ok";
+  }
+
+  // Só contagens, para o servidor (010) e o painel ?diag=1. Nunca coordenadas.
+  function resumoDiag(s) {
+    var d = s.diag;
+    return {
+      lidas: d.lidas, aceitas: d.aceitas, imprecisas: d.imprecisas,
+      melhorPrecisao: d.melhorPrecisao, ultimaPrecisao: d.ultimaPrecisao,
+      primeiraPosicaoS: d.primeiraPosicaoMs == null ? null : Math.round(d.primeiraPosicaoMs / 1000),
+      erros: d.erros, estado: estadoGps(s),
+      navegadorEmbutido: d.navegadorEmbutido, https: d.https, telaLigada: !!(s.wake && !s.wake.released)
+    };
+  }
+
   function publico() {
     if (!st) return null;
     return {
@@ -75,7 +107,9 @@
       inicio: st.inicio,
       situacao: st.situacao,
       onibus: st.onibus,
-      gpsFraco: st.gpsFraco,
+      estadoGps: estadoGps(st),
+      precisao: st.diag.ultimaPrecisao,
+      gpsFraco: estadoGps(st) === "impreciso",
       semSinal: !st.ultimaFix,
       enviadas: st.enviadas,
       simulada: st.simulada
@@ -109,13 +143,25 @@
     if (!st) return;
     var c = p.coords;
     var t = p.timestamp || Date.now();
+    var antes = estadoGps(st);
+    var d0 = st.diag;
+    d0.lidas++;
+    d0.ultimaPrecisao = Math.round(c.accuracy);
+    if (d0.melhorPrecisao == null || c.accuracy < d0.melhorPrecisao) d0.melhorPrecisao = Math.round(c.accuracy);
+    if (d0.primeiraPosicaoMs == null) d0.primeiraPosicaoMs = Date.now() - st.inicio;
+    st.ultimaLeitura = Date.now();
+    logGps("posição (viagem) lat", c.latitude, "lng", c.longitude, "precisão", Math.round(c.accuracy) + " m",
+      "horário", new Date(t).toISOString(), c.accuracy <= P.PRECISAO_MAX_M ? "ACEITA" : "DESCARTADA (imprecisa)");
+    // Posição com precisão ruim: não serve para estimar o ônibus. Não é enviada,
+    // mas conta como "o GPS está funcionando" (a tela mostra "GPS impreciso").
     if (!(c.accuracy <= P.PRECISAO_MAX_M)) {
-      if (!st.gpsFraco) { st.gpsFraco = true; notificar({ tipo: "situacao" }); }
+      d0.imprecisas++;
+      if (estadoGps(st) !== antes) notificar({ tipo: "situacao" });
       return;
     }
-    var mudou = st.gpsFraco || !st.ultimaFix;
-    st.gpsFraco = false;
-    st.ultimaFix = t;
+    d0.aceitas++;
+    st.ultimaFix = Date.now();
+    var mudou = estadoGps(st) !== antes;
 
     var velocidade = c.speed != null && !isNaN(c.speed) ? c.speed : null;
     var direcao = c.heading != null && !isNaN(c.heading) && velocidade != null && velocidade > 0.5 ? c.heading : null;
@@ -153,24 +199,40 @@
 
   function aoErro(err) {
     if (!st) return;
-    if (err && err.code === 1) { finalizar("permissao_negada", true); return; }
-    // Sem sinal ou demora: continua tentando; verificar() encerra se passar do limite.
-    if (!st.gpsFraco) { st.gpsFraco = true; notificar({ tipo: "situacao" }); }
+    var code = err ? err.code : 0;
+    st.diag.erros[code] = (st.diag.erros[code] || 0) + 1;
+    logGps("erro (viagem)", code, NOME_ERRO_GPS[code] || "", err && err.message);
+    if (code === 1) { finalizar("permissao_negada", true); return; }
+    // 2 (indisponível) ou 3 (demorou): o watchPosition continua tentando;
+    // verificar() encerra se passar do limite.
+    var antes = estadoGps(st);
+    st.ultimoErro = code;
+    if (estadoGps(st) !== antes) notificar({ tipo: "situacao" });
   }
 
   function tentarEnviar() {
-    if (!st || st.enviando || !st.fila.length) return;
+    // Sem viagemId: o GPS já começou, mas o servidor ainda não criou a viagem.
+    if (!st || st.enviando || !st.viagemId) return;
     var agora = Date.now();
     st.fila = st.fila.filter(function (a) { return agora - a.t <= P.FILA_IDADE_MAX_MS; });
     if (st.fila.length > P.FILA_MAX) st.fila = st.fila.slice(-P.FILA_MAX);
-    if (!st.fila.length || navigator.onLine === false) return;
-    var intervalo = st.rapido ? P.ENVIO_RAPIDO_MS : st.detalhado !== false ? P.ENVIO_MOVENDO_MS : P.ENVIO_PARADO_MS;
-    if (st.ultimoEnvio && st.fila.length < P.LOTE_MAX && agora - st.ultimoEnvio < intervalo) return;
+    if (navigator.onLine === false) return;
+    var lote;
+    if (st.fila.length) {
+      var intervalo = st.rapido ? P.ENVIO_RAPIDO_MS : st.detalhado !== false ? P.ENVIO_MOVENDO_MS : P.ENVIO_PARADO_MS;
+      if (st.ultimoEnvio && st.fila.length < P.LOTE_MAX && agora - st.ultimoEnvio < intervalo) return;
+      lote = st.fila.splice(0, P.LOTE_MAX);
+    } else {
+      // "Ainda estou aqui": o GPS está respondendo (mesmo que impreciso), mas não há
+      // posição boa para mandar. Sem isso o servidor encerraria por inatividade.
+      var vivo = st.ultimaLeitura && agora - st.ultimaLeitura < 60000;
+      if (!vivo || (st.ultimoEnvio && agora - st.ultimoEnvio < P.SINAL_DE_VIDA_MS)) return;
+      lote = [];
+    }
 
-    var lote = st.fila.splice(0, P.LOTE_MAX);
     var id = st.viagemId;
     st.enviando = true;
-    backend().enviar(id, lote).then(function (resp) {
+    backend().enviar(id, lote, resumoDiag(st)).then(function (resp) {
       if (!st || st.viagemId !== id) return;
       st.enviando = false;
       st.ultimoEnvio = Date.now();
@@ -189,7 +251,10 @@
     if (!st) return;
     var agora = Date.now();
     if (agora - st.inicio > P.DURACAO_MAX_MS) { finalizar("tempo_max", true); return; }
-    if (agora - (st.ultimaFix || st.inicio) > P.SEM_GPS_MAX_MS) { finalizar("sem_sinal_gps", true); return; }
+    // Nenhuma posição (nem imprecisa) há 3 min: o GPS não está respondendo.
+    if (agora - (st.ultimaLeitura || st.inicio) > P.SEM_GPS_MAX_MS) { finalizar("sem_sinal_gps", true); return; }
+    // Há posições, mas só imprecisas há 10 min: não dá para ajudar a mostrar o ônibus.
+    if (agora - (st.ultimaFix || st.inicio) > P.GPS_IMPRECISO_MAX_MS) { finalizar("gps_impreciso", true); return; }
     tentarEnviar();
   }
 
@@ -205,13 +270,23 @@
     if (!st) return;
     var v = st;
     st = null;
+    v.fimMotivo = motivo;
     if (v.watchId != null && v.fonte) v.fonte.clearWatch(v.watchId);
+    logGps("viagem encerrada:", motivo, "| diagnóstico:", JSON.stringify(resumoDiag(v)));
     clearInterval(v.timer);
     if (v.cancelarAcompanhamento) v.cancelarAcompanhamento();
     if (v.wake) { try { v.wake.release(); } catch (e) { /* já liberado */ } }
     gravarLocal(CHAVE_VIAGEM, null);
     // O que ainda estava na fila é descartado: a pessoa já saiu da viagem.
-    if (avisarServidor) backend().encerrar(v.viagemId, motivo).catch(function () { /* o servidor encerra por inatividade */ });
+    // Sem viagemId (terminou antes de o servidor responder): iniciar() encerra lá.
+    if (avisarServidor && v.viagemId) {
+      // Manda antes o diagnóstico final (só contagens), para ficar registrado também
+      // quando o GPS nunca deu posição (erros 2/3).
+      var b = backend();
+      b.enviar(v.viagemId, [], resumoDiag(v)).catch(function () {}).then(function () {
+        return b.encerrar(v.viagemId, motivo);
+      }).catch(function () { /* o servidor encerra por inatividade */ });
+    }
     ouvintes.slice().forEach(function (cb) {
       try {
         cb(null, {
@@ -223,6 +298,31 @@
         });
       } catch (e) { /* segue */ }
     });
+  }
+
+  function novoEstado(linha, fonte, simulada) {
+    return {
+      viagemId: null, linhaId: linha.id, linhaNumero: linha.numero, inicio: Date.now(),
+      fila: [], ultimaGuardada: null, ultimaFix: null, ultimaLeitura: null, ultimoErro: null,
+      ultimoEnvio: 0, enviando: false, enviadas: 0,
+      movendo: true, situacao: null, onibus: null,
+      fonte: fonte, simulada: simulada, watchId: null, timer: null, cancelarAcompanhamento: null, wake: null,
+      diag: {
+        lidas: 0, aceitas: 0, imprecisas: 0, melhorPrecisao: null, ultimaPrecisao: null, primeiraPosicaoMs: null,
+        erros: {}, https: window.isSecureContext !== false,
+        navegadorEmbutido: (S.gps && S.gps.navegadorEmbutido()) || null
+      }
+    };
+  }
+
+  // A viagem existe no servidor e o GPS está ligado: começa a acompanhar e enviar.
+  function comecar(b, linha) {
+    st.timer = setInterval(verificar, P.VERIFICAR_MS);
+    st.cancelarAcompanhamento = b.acompanhar(st.viagemId, aoSituacao);
+    manterTelaLigada();
+    gravarLocal(CHAVE_VIAGEM, { linhaId: linha.id, linhaNumero: linha.numero, inicio: st.inicio });
+    notificar({ tipo: "inicio" });
+    tentarEnviar(); // o que o GPS já mandou enquanto esperava o servidor
   }
 
   // ---------- Interface pública ----------
@@ -265,26 +365,54 @@
       var b = backend();
       iniciando = true;
       var fim = function (x) { iniciando = false; return x; };
+      var usarSimulado = opcoes.simularGps && window.DaSinalColaborativo.gpsDemonstracao;
+      logGps("Estou neste ônibus: linha", linha.numero, "| suporte:", !!navigator.geolocation, "| https:", window.isSecureContext,
+        "| navegador de aplicativo:", (S.gps && S.gps.navegadorEmbutido()) || "não");
+      if (S.gps) S.gps.estadoPermissao().then(function (s) { logGps("permissão (informativo):", s); });
+
+      // GPS de verdade: liga JÁ, no mesmo toque, antes de esperar o servidor criar a
+      // viagem (1–3 s, mais na rede do ônibus). O pedido de permissão fica ligado ao
+      // toque e a primeira posição chega antes. As leituras esperam na fila.
+      var antecipado = null;
+      if (!usarSimulado) {
+        if (!navigator.geolocation) { fim(); return Promise.reject({ codigo: "sem_suporte" }); }
+        if (window.isSecureContext === false) { fim(); return Promise.reject({ codigo: "sem_https" }); }
+        antecipado = st = novoEstado(linha, navigator.geolocation, false);
+        st.watchId = navigator.geolocation.watchPosition(aoPosicao, aoErro, OPCOES_GPS);
+        logGps("watchPosition chamado (viagem), id", st.watchId, "opções", JSON.stringify(OPCOES_GPS));
+      }
+
       return b.iniciar(linha, { versaoConsentimento: VERSAO_CONSENTIMENTO }).then(function (r) {
-        var usarSimulado = opcoes.simularGps && window.DaSinalColaborativo.gpsDemonstracao;
-        return (usarSimulado ? window.DaSinalColaborativo.gpsDemonstracao(linha) : Promise.resolve(null)).then(function (gpsSimulado) {
+        if (antecipado) {
+          // Terminou enquanto esperava o servidor (ex.: permissão negada): encerra lá também.
+          if (st !== antecipado) {
+            b.encerrar(r.viagemId, antecipado.fimMotivo || "usuario").catch(function () {});
+            throw { codigo: antecipado.fimMotivo === "permissao_negada" ? "permissao_negada" : "cancelada" };
+          }
+          st.viagemId = r.viagemId;
+          return comecar(b, linha);
+        }
+        return window.DaSinalColaborativo.gpsDemonstracao(linha).then(function (gpsSimulado) {
           var fonte = gpsSimulado || navigator.geolocation;
           if (!fonte) { b.encerrar(r.viagemId, "sem_suporte"); throw { codigo: "sem_suporte" }; }
-          st = {
-            viagemId: r.viagemId, linhaId: linha.id, linhaNumero: linha.numero, inicio: Date.now(),
-            fila: [], ultimaGuardada: null, ultimaFix: null, ultimoEnvio: 0, enviando: false, enviadas: 0,
-            movendo: true, gpsFraco: false, situacao: null, onibus: null,
-            fonte: fonte, simulada: !!gpsSimulado, watchId: null, timer: null, cancelarAcompanhamento: null, wake: null
-          };
-          st.watchId = fonte.watchPosition(aoPosicao, aoErro, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
-          st.timer = setInterval(verificar, P.VERIFICAR_MS);
-          st.cancelarAcompanhamento = b.acompanhar(st.viagemId, aoSituacao);
-          manterTelaLigada();
-          gravarLocal(CHAVE_VIAGEM, { linhaId: linha.id, linhaNumero: linha.numero, inicio: st.inicio });
-          notificar({ tipo: "inicio" });
+          st = novoEstado(linha, fonte, !!gpsSimulado);
+          st.viagemId = r.viagemId;
+          st.watchId = fonte.watchPosition(aoPosicao, aoErro, OPCOES_GPS);
+          return comecar(b, linha);
         });
+      }, function (e) {
+        // O servidor não criou a viagem: desliga o GPS que já estava ligado.
+        if (antecipado && st === antecipado) {
+          if (st.watchId != null) navigator.geolocation.clearWatch(st.watchId);
+          st = null;
+          notificar({ tipo: "cancelada" });
+        }
+        throw e;
       }).then(fim, function (e) { fim(); throw e; });
     },
+
+    // Contagens do GPS da viagem atual, para o painel ?diag=1.
+    diag: function () { return st ? resumoDiag(st) : null; },
 
     // motivo: "usuario" (tocou em "Saí do ônibus") ou outro motivo do app.
     encerrar: function (motivo) { finalizar(motivo || "usuario", true); },
