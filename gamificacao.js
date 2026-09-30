@@ -119,6 +119,14 @@
       gravar(d);
       notificar({ tipo: "aviso_confirmado", linhaNumero: ev.linhaNumero, total: pts, nivel: P.nivelDe(d.resumo.pontosTotal) });
     },
+    // Só na demonstração (apresentação dos cupons): dá pontos sem precisar viajar.
+    creditarDemo: function (pts, descricao) {
+      var d = ler();
+      d.resumo.pontosTotal += pts;
+      d.historico.push({ em: Date.now(), viagemId: null, linhaNumero: null, tipo: "demonstracao", pontos: pts, descricao: descricao || "Pontos de demonstração" });
+      gravar(d);
+      notificar({ tipo: "demonstracao", total: pts, nivel: P.nivelDe(d.resumo.pontosTotal) });
+    },
     // Chamado quando uma viagem termina (ver final do arquivo).
     pontuar: function (ev) {
       var s = ev.situacao || {};
@@ -232,6 +240,7 @@
     atualizarPerfil: backend.atualizarPerfil,
     apagar: backend.apagar,
     creditarAvisoDemo: noServidor ? null : demo.creditarAvisoDemo,
+    creditarDemo: noServidor ? null : demo.creditarDemo,
     aoMudar: function (cb) {
       ouvintes.push(cb);
       return function () { var i = ouvintes.indexOf(cb); if (i >= 0) ouvintes.splice(i, 1); };

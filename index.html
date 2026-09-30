@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800;0,900;1,900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="estilos.css?v=7d77bc5e">
+<link rel="stylesheet" href="estilos.css?v=8f121318">
 </head>
 <body>
 
@@ -188,6 +188,7 @@
         </a>
         <div class="menu card">
           <a class="menu-item" href="#/conta"><span data-icone="usuario" data-tam="20"></span><span>Minha conta</span><em id="perfil-conta"></em><span data-icone="avancar" data-tam="18"></span></a>
+          <a class="menu-item" href="#/cupons"><span data-icone="presente" data-tam="20"></span><span>Trocar pontos por cupons</span><em id="perfil-cupons"></em><span data-icone="avancar" data-tam="18"></span></a>
           <a class="menu-item" href="#/linhas/favoritas"><span data-icone="coracaoCheio" data-tam="20"></span><span>Minhas linhas favoritas</span><em id="perfil-qtd-fav"></em><span data-icone="avancar" data-tam="18"></span></a>
           <a class="menu-item" href="#/alarme"><span data-icone="sino" data-tam="20"></span><span>Meu alarme de ponto</span><em id="perfil-alarme"></em><span data-icone="avancar" data-tam="18"></span></a>
           <a class="menu-item" href="#/pontos"><span data-icone="pin" data-tam="20"></span><span>Pontos de ônibus</span><span data-icone="avancar" data-tam="18"></span></a>
@@ -215,6 +216,18 @@
         </div>
       </header>
       <div class="conteudo" id="meus-pontos-conteudo"></div>
+    </section>
+
+    <!-- Trocar pontos por cupons (lojas parceiras; no piloto, fictícias) -->
+    <section class="tela" id="tela-cupons" hidden aria-labelledby="titulo-cupons">
+      <header class="cabeca">
+        <div class="cabeca-miolo cabeca-nav">
+          <button type="button" class="btn-icone claro js-voltar" aria-label="Voltar"><span data-icone="voltar" data-tam="24"></span></button>
+          <div class="cabeca-centro"><h1 id="titulo-cupons">Cupons</h1></div>
+          <span class="btn-icone-vazio"></span>
+        </div>
+      </header>
+      <div class="conteudo" id="cupons-conteudo"></div>
     </section>
 
     <!-- Minha conta (usuário e senha, opcional) -->
@@ -366,7 +379,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="config.js?v=497f1a6d"></script>
 <script src="dados-demo.js?v=f3b583d9"></script>
-<script src="icones.js?v=09376e52"></script>
+<script src="icones.js?v=c6fb60d7"></script>
 <script src="rotas.js?v=94db1ab8"></script>
 <script src="servicos.js?v=6aa28e8a"></script>
 <script src="estimador.js?v=f0b356eb"></script>
@@ -375,10 +388,12 @@
 <script src="colaborativo.js?v=b9115d2b"></script>
 <script src="viagem.js?v=7e518186"></script>
 <script src="regras-pontos.js?v=27d364d1"></script>
-<script src="gamificacao.js?v=64f39c2b"></script>
+<script src="gamificacao.js?v=74a6aff7"></script>
 <script src="avisos.js?v=6a6b8bd8"></script>
 <script src="conta.js?v=34ad6d16"></script>
-<script src="app.js?v=2006efee"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="cupons.js?v=57390c58"></script>
+<script src="app.js?v=195b7f13"></script>
 <script src="diagnostico-gps.js?v=49abd961"></script>
 </body>
 </html>

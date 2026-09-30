@@ -143,9 +143,9 @@
   var telas = {
     home: $("#tela-home"), linhas: $("#tela-linhas"), linha: $("#tela-linha"), mapa: $("#tela-mapa"),
     pontos: $("#tela-pontos"), perfil: $("#tela-perfil"), alarme: $("#tela-alarme"),
-    "meus-pontos": $("#tela-meus-pontos"), conta: $("#tela-conta")
+    "meus-pontos": $("#tela-meus-pontos"), conta: $("#tela-conta"), cupons: $("#tela-cupons")
   };
-  var NAV_DA_TELA = { linha: "linhas", alarme: "perfil", "meus-pontos": "perfil", conta: "perfil" };
+  var NAV_DA_TELA = { linha: "linhas", alarme: "perfil", "meus-pontos": "perfil", conta: "perfil", cupons: "perfil" };
   var telaAtual = null;
   var versaoTela = 0;
   var cancelarTela = [];
@@ -1326,6 +1326,14 @@
       S.conta.estado().catch(function () { return { tipo: "nenhuma" }; })]).then(function (r) {
       if (versao !== versaoTela) return;
       desenharMeusPontos(r[0], r[1]);
+      // Trocar pontos por cupons (logo abaixo do nível).
+      var nivelCard = caixa.querySelector(".nivel-card");
+      var cupons = el("a", { class: "card conta-chamada cupons-chamada", href: "#/cupons" },
+        el("span", { class: "conta-chamada-icone" }, icone("presente", 22)),
+        el("span", {}, el("strong", { text: "Trocar pontos por cupons" }),
+          el("small", { text: "Descontos e brindes em lojas parceiras. Trocar não diminui o seu nível." })),
+        icone("avancar", 20));
+      if (nivelCard && nivelCard.nextSibling) caixa.insertBefore(cupons, nivelCard.nextSibling); else caixa.append(cupons);
       // Ainda sem conta e já com pontos: convida a salvar.
       if (r[2].tipo !== "cadastrada" && r[0].pontosTotal > 0) {
         caixa.prepend(el("a", { class: "card conta-chamada", href: "#/conta" },
@@ -1500,6 +1508,7 @@
       "viagens compartilhadas, autorizações, avisos, pontos e perfil? Isso não pode ser desfeito.")) return;
     S.viagem.excluirMeusDados().then(S.pontos.apagar).then(function () {
       if (!A.noServidor) A.apagarDemo(); // no servidor, excluir_meus_dados já apaga os avisos e a conta
+      if (!CU.noServidor) CU.apagar();
       S.conta.apagar();
       atualizarPerfilConsentimento();
       atualizarCardPontos();
@@ -1752,6 +1761,152 @@
     if (telaAtual === "meus-pontos") abrirMeusPontos();
   });
 
+  // ---------- Cupons: trocar pontos em lojas parceiras (piloto com lojas fictícias) ----------
+
+  var CU = S.cupons;
+  var MENSAGENS_CUPOM = {
+    conta_anonima: "Para trocar pontos, crie sua conta (usuário e senha) em Perfil → Minha conta.",
+    sem_sessao: "Para trocar pontos, crie sua conta (usuário e senha) em Perfil → Minha conta.",
+    saldo_insuficiente: "Você ainda não tem pontos suficientes para este cupom.",
+    limite_semana: "Você já trocou " + CU.LIMITE_SEMANA + " cupons nesta semana. Volte na semana que vem!",
+    esgotado: "Este cupom esgotou neste mês.",
+    recompensa_invalida: "Este cupom não está mais disponível.",
+    falha: "Não foi possível trocar agora. Verifique sua conexão e tente de novo."
+  };
+
+  function dataCurta(ms) {
+    return new Date(ms).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  }
+
+  // QR code com o endereço da página da loja já com o código (a loja lê com a câmera).
+  function qrCupom(codigo) {
+    if (!window.qrcode) return null;
+    var q = window.qrcode(0, "M");
+    q.addData(CU.linkLoja(codigo));
+    q.make();
+    return el("span", { class: "cupom-qr", html: q.createSvgTag(4, 2), role: "img", "aria-label": "QR code do cupom " + codigo });
+  }
+
+  function situacaoCupom(c) {
+    if (c.usadoEm) return { classe: "usado", texto: "Usado em " + dataCurta(c.usadoEm) };
+    if (c.expiraEm < Date.now()) return { classe: "expirado", texto: "Expirou em " + dataCurta(c.expiraEm) };
+    return { classe: "valido", texto: "Válido até " + dataCurta(c.expiraEm) };
+  }
+
+  function nomeLoja(loja) { return loja.nome + (loja.ficticia ? " · loja fictícia" : ""); }
+
+  function cartaoCupom(c, destaque) {
+    var s = situacaoCupom(c);
+    return el("article", { class: "card cupom " + s.classe + (destaque ? " destaque" : "") },
+      el("div", { class: "cupom-topo" },
+        el("span", { class: "loja-icone" }, icone(c.loja.icone || "loja", 22)),
+        el("div", {}, el("strong", { text: c.titulo }), el("small", { text: nomeLoja(c.loja) }))),
+      s.classe === "valido"
+        ? el("div", { class: "cupom-codigo-area" }, qrCupom(c.codigo),
+            el("div", {}, el("small", { text: "Mostre na loja" }), el("strong", { class: "cupom-codigo", text: c.codigo }),
+              el("small", { text: c.descricao || "" })))
+        : el("p", { class: "cupom-codigo riscado", text: c.codigo }),
+      el("p", { class: "cupom-situacao " + s.classe, text: s.texto }));
+  }
+
+  function abrirCupons(codigoNovo) {
+    var versao = mostrarTela("cupons");
+    var caixa = $("#cupons-conteudo");
+    if (!caixa.childElementCount) caixa.replaceChildren(el("p", { class: "vazio", text: "Carregando…" }));
+    Promise.all([CU.catalogo(), CU.meus()]).then(function (r) {
+      if (versao !== versaoTela) return;
+      desenharCupons(r[0], r[1], codigoNovo);
+    }, function () {
+      caixa.replaceChildren(el("p", { class: "vazio", text: "Não foi possível carregar os cupons agora. Verifique sua conexão." }));
+    });
+  }
+
+  function trocar(rec, saldo) {
+    var msg = "Trocar " + rec.custo + " pontos por “" + rec.titulo + "” (" + rec.loja.nome + ")?\n\nO cupom vale " + rec.validadeHoras +
+      " horas e só pode ser usado uma vez. Você fica com " + (saldo - rec.custo) + " pontos.";
+    if (!window.confirm(msg)) return;
+    CU.resgatar(rec.id).then(function (r) {
+      avisar("Cupom gerado! Mostre o código " + r.codigo + " na loja.", true);
+      abrirCupons(r.codigo);
+      window.scrollTo(0, 0);
+    }, function (e) { avisar(MENSAGENS_CUPOM[(e && e.codigo) || "falha"] || MENSAGENS_CUPOM.falha); });
+  }
+
+  function desenharCupons(catalogo, meus, codigoNovo) {
+    var partes = [];
+    partes.push(el("div", { class: "card saldo-card" },
+      el("span", { class: "conta-chamada-icone" }, icone("presente", 24)),
+      el("div", {},
+        el("small", { text: "Pontos para trocar" }),
+        el("strong", { class: "saldo-numero", text: String(Math.max(0, meus.saldo)) }),
+        el("small", { text: "Até " + CU.LIMITE_SEMANA + " cupons por semana (" + meus.semana + " nesta semana) · cada cupom vale 48 h. Trocar não diminui o seu nível." }))));
+
+    if (!meus.cadastrada) {
+      partes.push(el("a", { class: "card conta-chamada", href: "#/conta" },
+        el("span", { class: "conta-chamada-icone" }, icone("usuario", 22)),
+        el("span", {}, el("strong", { text: "Crie sua conta para trocar pontos" }),
+          el("small", { text: "Por segurança, só contas com usuário e senha podem gerar cupons. Seus pontos continuam os mesmos." })),
+        icone("avancar", 20)));
+    }
+
+    if (S.pontos.creditarDemo) {
+      var ganhar = el("button", { type: "button", class: "btn btn-contorno btn-pequeno", text: "+300 pontos de demonstração" });
+      ganhar.addEventListener("click", function () { S.pontos.creditarDemo(300, "Pontos de demonstração (apresentação)"); abrirCupons(); });
+      partes.push(el("div", { class: "cupons-demo" }, el("small", { text: "Só nesta demonstração:" }), ganhar));
+    }
+
+    if (catalogo.some(function (r) { return r.loja.ficticia; })) {
+      partes.push(el("p", { class: "aviso-ficticio" }, icone("info", 18),
+        el("span", { text: "Piloto: as lojas abaixo são fictícias, criadas para demonstrar como a troca de pontos vai funcionar." })));
+    }
+
+    var validos = meus.cupons.filter(function (c) { return situacaoCupom(c).classe === "valido"; });
+    var outros = meus.cupons.filter(function (c) { return situacaoCupom(c).classe !== "valido"; });
+    if (meus.cupons.length) {
+      partes.push(el("div", { class: "secao-titulo" }, el("h2", { text: "Meus cupons" }), el("span", { class: "contador", text: validos.length + " válido(s)" })));
+      var lista = el("div", { class: "cupons-lista" });
+      validos.concat(outros.slice(0, 6)).forEach(function (c) { lista.append(cartaoCupom(c, c.codigo === codigoNovo)); });
+      partes.push(lista);
+    }
+
+    partes.push(el("div", { class: "secao-titulo" }, el("h2", { text: "Trocar pontos" })));
+    var porLoja = {};
+    var ordem = [];
+    catalogo.forEach(function (r) {
+      if (!porLoja[r.loja.id]) { porLoja[r.loja.id] = { loja: r.loja, itens: [] }; ordem.push(r.loja.id); }
+      porLoja[r.loja.id].itens.push(r);
+    });
+    var grade = el("div", { class: "lojas" });
+    ordem.forEach(function (id) {
+      var g = porLoja[id];
+      var itens = el("ul", { class: "recompensas" });
+      g.itens.forEach(function (r) {
+        var falta = r.custo - Math.max(0, meus.saldo);
+        var b = el("button", { type: "button", class: "btn btn-pequeno " + (falta > 0 ? "btn-contorno" : "btn-amarelo") },
+          r.restantes <= 0 ? "Esgotado" : falta > 0 ? "Faltam " + falta : "Trocar");
+        if (r.restantes <= 0 || falta > 0 || !meus.cadastrada) b.disabled = true;
+        b.addEventListener("click", function () { trocar(r, meus.saldo); });
+        itens.append(el("li", {},
+          el("div", { class: "recompensa-textos" }, el("strong", { text: r.titulo }), el("small", { text: r.descricao || "" }),
+            el("small", { class: "recompensa-estoque", text: r.restantes + " disponíveis neste mês" })),
+          el("div", { class: "recompensa-acao" }, el("span", { class: "recompensa-custo", text: r.custo + " pts" }), b)));
+      });
+      grade.append(el("article", { class: "card loja-card" },
+        el("div", { class: "cupom-topo" },
+          el("span", { class: "loja-icone" }, icone(g.loja.icone || "loja", 22)),
+          el("div", {},
+            el("strong", { text: g.loja.nome }),
+            el("small", { text: g.loja.categoria + (g.loja.endereco ? " · " + g.loja.endereco : "") }),
+            g.loja.ficticia ? el("span", { class: "selo-ficticia", text: "Loja fictícia (demonstração)" }) : null)),
+        itens));
+    });
+    partes.push(grade);
+    partes.push(el("p", { class: "nota", text: "A loja confere o cupom pelo código e não recebe seu nome, usuário nem localização." }));
+    preencher.apply(null, [$("#cupons-conteudo")].concat(partes));
+  }
+
+  CU.aoMudar(function () { if (telaAtual === "cupons") abrirCupons(); });
+
   // ---------- Alarme de ponto ----------
   // Um alarme por aparelho, guardado neste navegador. Enquanto o app está
   // aberto, acompanha a posição do ônibus e avisa quando ele se aproxima.
@@ -1897,6 +2052,7 @@
     else if (p === "alarme") abrirAlarme(partes[1] || null);
     else if (p === "meus-pontos") abrirMeusPontos();
     else if (p === "conta") abrirConta(partes[1]);
+    else if (p === "cupons") abrirCupons();
     else abrirHome();
   }
 

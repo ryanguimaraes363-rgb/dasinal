@@ -588,6 +588,59 @@ body.com-viagem #avisos { bottom: calc(var(--nav-h) + var(--faixa-h) + env(safe-
 .historico-viagem li span:last-child { font-weight: 800; color: var(--texto); }
 .historico-viagem li.negativo span:last-child { color: #B3261E; }
 
+/* ---------- Cupons (troca de pontos) ---------- */
+
+.saldo-card { display: flex; align-items: center; gap: .9rem; padding: 1rem 1.1rem; margin-bottom: 1rem; }
+.saldo-card > div { display: grid; gap: .1rem; min-width: 0; }
+.saldo-card small { color: var(--texto-2); font-size: .8rem; font-weight: 600; line-height: 1.35; }
+.saldo-numero { font-size: 2rem; font-weight: 900; color: var(--navy-900); line-height: 1.1; }
+.cupons-demo { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin: -.3rem 0 1rem; color: var(--texto-2); font-weight: 700; }
+.aviso-ficticio { display: flex; align-items: flex-start; gap: .5rem; margin: 0 0 1rem; padding: .7rem .8rem; border-radius: 12px;
+  background: #EEF2FA; color: var(--navy-800); font-size: .85rem; font-weight: 700; line-height: 1.4; }
+.cupons-lista { display: grid; gap: .8rem; margin-bottom: 1.4rem; }
+.cupom { padding: 1rem; display: grid; gap: .7rem; border-left: 4px solid var(--verde); }
+.cupom.destaque { box-shadow: 0 0 0 3px var(--amarelo), var(--sombra-forte); }
+.cupom.usado, .cupom.expirado { border-left-color: #C9D1DD; opacity: .75; }
+.cupom-topo { display: flex; align-items: center; gap: .75rem; }
+.cupom-topo > div { min-width: 0; display: grid; gap: .1rem; }
+.cupom-topo strong { font-weight: 800; color: var(--navy-900); }
+.cupom-topo small { color: var(--texto-2); font-size: .8rem; font-weight: 600; }
+.loja-icone { display: grid !important; place-items: center; width: 42px; height: 42px; border-radius: 12px; flex: none; background: var(--amarelo-claro); color: #8A5A00; }
+.cupom-codigo-area { display: flex; align-items: center; gap: .9rem; }
+.cupom-codigo-area > div { display: grid; gap: .2rem; min-width: 0; }
+.cupom-codigo-area small { color: var(--texto-2); font-size: .78rem; font-weight: 600; }
+.cupom-qr { display: block; flex: none; width: 116px; height: 116px; background: #fff; border-radius: 8px; }
+.cupom-qr svg { width: 100%; height: 100%; }
+.cupom-codigo { font-size: 1.4rem; font-weight: 900; letter-spacing: .08em; color: var(--navy-900); font-variant-numeric: tabular-nums; user-select: all; }
+.cupom-codigo.riscado { margin: 0; text-decoration: line-through; color: var(--texto-2); font-size: 1.05rem; }
+.cupom-situacao { margin: 0; font-size: .82rem; font-weight: 800; }
+.cupom-situacao.valido { color: var(--verde); }
+.cupom-situacao.usado, .cupom-situacao.expirado { color: var(--texto-2); }
+.lojas { display: grid; gap: .9rem; }
+.loja-card { padding: 1rem; display: grid; gap: .6rem; }
+.selo-ficticia { display: inline-block; width: fit-content; margin-top: .15rem; padding: .1rem .45rem; border-radius: 99px;
+  background: #EEF2FA; color: var(--navy-800); font-size: .7rem; font-weight: 800; }
+.recompensas { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.recompensas li { display: flex; align-items: center; justify-content: space-between; gap: .7rem; padding: .7rem; border-radius: 12px; background: var(--card-2); }
+.recompensa-textos { display: grid; gap: .1rem; min-width: 0; }
+.recompensa-textos strong { font-weight: 800; color: var(--navy-900); }
+.recompensa-textos small { color: var(--texto-2); font-size: .78rem; }
+.recompensa-estoque { font-weight: 700; }
+.recompensa-acao { display: grid; justify-items: end; gap: .3rem; flex: none; }
+.recompensa-custo { font-weight: 900; color: var(--navy-900); }
+.cupons-chamada { border-left-color: var(--verde); }
+
+/* Página da loja (loja.html) */
+.loja-pagina { max-width: 460px; margin: 0 auto; padding: 1.2rem 16px 2rem; }
+.loja-pagina h1 { font-size: 1.35rem; font-weight: 900; color: var(--navy-900); margin: .8rem 0 .3rem; }
+.loja-resultado { padding: 1.1rem; display: grid; gap: .5rem; margin-top: 1rem; border-left: 5px solid var(--borda); }
+.loja-resultado.ok { border-left-color: var(--verde); }
+.loja-resultado.erro { border-left-color: #B3261E; }
+.loja-resultado h2 { font-size: 1.15rem; font-weight: 900; margin: 0; }
+.loja-resultado.ok h2 { color: var(--verde); }
+.loja-resultado.erro h2 { color: #B3261E; }
+.loja-resultado p { margin: 0; color: var(--texto-2); line-height: 1.45; }
+
 /* ---------- Diagnóstico do GPS (só com ?diag=1) ---------- */
 
 .diag-gps {

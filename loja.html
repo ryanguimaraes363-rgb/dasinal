@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B2447">
+<title>Dá sinal · Validar cupom</title>
+<meta name="description" content="Área da loja parceira: conferir e validar cupons do Dá sinal.">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css?v=8f121318">
+</head>
+<body>
+<header class="cabeca">
+  <div class="cabeca-miolo"><div class="cabeca-centro"><h1>Área da loja parceira</h1></div></div>
+</header>
+<main class="loja-pagina">
+  <p class="aviso-ficticio" id="aviso-demo"><span>Demonstração: as lojas do piloto são fictícias. O PIN de todas é <strong>1234</strong>.</span></p>
+  <h1>Validar cupom</h1>
+  <p class="nota" style="margin-top:0">Digite o código que o cliente mostrou no app (ou leia o QR code com a câmera) e o PIN da sua loja.</p>
+  <form class="card conta-form" id="form-cupom" novalidate style="margin-top:1rem">
+    <label class="campo"><span>Código do cupom</span>
+      <input class="entrada entrada-codigo" id="codigo" type="text" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="DS-XXXXXX"></label>
+    <label class="campo"><span>PIN da loja</span>
+      <input class="entrada" id="pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="••••"></label>
+    <button type="submit" class="btn btn-primario btn-bloco" id="conferir">Conferir cupom</button>
+  </form>
+  <section id="resultado" aria-live="polite"></section>
+  <p class="nota">A loja vê só o cupom: nome, usuário e localização do cliente não aparecem aqui.</p>
+  <p class="nota"><a class="conta-link" href="index.html">Voltar para o Dá sinal</a></p>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js?v=497f1a6d"></script>
+<script src="dados-demo.js?v=f3b583d9"></script>
+<script src="servicos.js?v=6aa28e8a"></script>
+<script src="cupons.js?v=57390c58"></script>
+<script>
+(function () {
+  "use strict";
+  var CU = window.DaSinal.cupons;
+  var ERROS = {
+    codigo_invalido: ["Código não encontrado", "Confira as letras e números com o cliente."],
+    pin_invalido: ["PIN incorreto", "O PIN não é o da loja deste cupom."],
+    ja_usado: ["Cupom já usado", "Este cupom já foi usado"],
+    expirado: ["Cupom expirado", "Este cupom passou da validade"],
+    falha: ["Não foi possível conferir", "Verifique a conexão e tente de novo."]
+  };
+  function $(s) { return document.querySelector(s); }
+  function el(tag, attrs, filhos) {
+    var n = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) { if (k === "text") n.textContent = attrs[k]; else if (k === "class") n.className = attrs[k]; else n.setAttribute(k, attrs[k]); });
+    (filhos || []).forEach(function (f) { if (f) n.append(f); });
+    return n;
+  }
+  function data(iso) { return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); }
+
+  var param = new URLSearchParams(window.location.search).get("codigo");
+  if (param) $("#codigo").value = param;
+  (param ? $("#pin") : $("#codigo")).focus();
+
+  function mostrar(r, usar) {
+    var caixa = $("#resultado");
+    if (!r.ok) {
+      var e = ERROS[r.erro] || ERROS.falha;
+      var detalhe = e[1] + (r.usadoEm ? " em " + data(r.usadoEm) + "." : r.erro === "expirado" && r.expiraEm ? " (" + data(r.expiraEm) + ")." : "");
+      caixa.replaceChildren(el("div", { class: "card loja-resultado erro" }, [
+        el("h2", { text: e[0] }), r.titulo ? el("p", { text: r.titulo + " · " + r.loja }) : null, el("p", { text: detalhe })]));
+      return;
+    }
+    var itens = [
+      el("h2", { text: r.usado ? "Cupom usado ✔" : "Cupom válido" }),
+      el("p", {}, [el("strong", { text: r.titulo })]),
+      r.descricao ? el("p", { text: r.descricao }) : null,
+      el("p", { text: r.loja + (r.ficticia ? " (loja fictícia)" : "") + " · código " + r.codigo }),
+      el("p", { text: r.usado ? "Pode entregar o desconto ou brinde ao cliente." : "Válido até " + data(r.expiraEm) + ". Confirme o uso ao entregar o desconto ou brinde." })
+    ];
+    if (!r.usado) {
+      var b = el("button", { type: "button", class: "btn btn-amarelo btn-bloco", text: "Confirmar uso do cupom" });
+      b.addEventListener("click", function () { b.disabled = true; validar(true); });
+      itens.push(b);
+    } else {
+      var outro = el("button", { type: "button", class: "btn btn-contorno btn-bloco", text: "Validar outro cupom" });
+      outro.addEventListener("click", function () { $("#codigo").value = ""; caixa.replaceChildren(); $("#codigo").focus(); });
+      itens.push(outro);
+    }
+    caixa.replaceChildren(el("div", { class: "card loja-resultado ok" }, itens));
+  }
+
+  function validar(usar) {
+    var codigo = $("#codigo").value.trim(), pin = $("#pin").value.trim();
+    if (!codigo || !pin) { mostrar({ ok: false, erro: !codigo ? "codigo_invalido" : "pin_invalido" }); return; }
+    $("#conferir").disabled = true;
+    CU.validar(codigo, pin, usar).then(function (r) { mostrar(r, usar); }, function () { mostrar({ ok: false, erro: "falha" }); })
+      .then(function () { $("#conferir").disabled = false; });
+  }
+  $("#form-cupom").addEventListener("submit", function (e) { e.preventDefault(); validar(false); });
+})();
+</script>
+</body>
+</html>

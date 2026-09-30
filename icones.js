@@ -45,6 +45,14 @@
     grupo: traco('<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 5.2a3.2 3.2 0 0 1 0 6.1M18 14.3c1.8.8 3 2.9 3 5.7"/>'),
     ferramenta: traco('<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9l-3.8 3.8Z"/>'),
     joinha: traco('<path d="M7 11v9H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3Z"/><path d="M7 11l4-7.5a2 2 0 0 1 3 1.9L13.4 9H19a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 17.8 20H7"/>'),
+    // Cupons e lojas parceiras
+    presente: traco('<rect x="3.5" y="8" width="17" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12"/><path d="M12 8S10.5 3.5 8 4.5 9 8 12 8Zm0 0s1.5-4.5 4-3.5S15 8 12 8Z"/>'),
+    cafe: traco('<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5V9Z"/><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16M8 3.5c0 1 1 1 1 2s-1 1-1 2M12 3.5c0 1 1 1 1 2s-1 1-1 2"/>'),
+    papel: traco('<path d="M7 3h7l4 4v14H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>'),
+    sorvete: traco('<path d="M8 11a4 4 0 1 1 8 0"/><path d="M7.5 11h9L12 21l-4.5-10Z"/>'),
+    farmacia: traco('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/>'),
+    cinema: traco('<path d="M3 8.5a1.5 1.5 0 0 0 0 3V16a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-4.5a1.5 1.5 0 0 0 0-3V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v1.5Z"/><path d="M9 6v11" stroke-dasharray="2 2"/>'),
+    loja: traco('<path d="M4 9.5 5.5 4h13L20 9.5M4 9.5V20h16V9.5M4 9.5h16"/><path d="M10 20v-5h4v5"/>'),
     lista: traco('<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1" fill="currentColor"/><circle cx="4.5" cy="12" r="1" fill="currentColor"/><circle cx="4.5" cy="18" r="1" fill="currentColor"/>')
   };
 })();

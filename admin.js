@@ -261,12 +261,14 @@
     // Os avisos vêm à parte: se falharem (ex.: 006 ainda não rodou), o resto do painel continua.
     var avisos = (noServidor ? rpc("admin_avisos", { p_dias: estado.dias }) : Promise.resolve(avisosDemo(estado.dias)))
       .catch(function () { return null; });
-    return Promise.all([promessa, avisos]).then(function (r) {
+    var cupons = (S.cupons ? S.cupons.resumoAdmin() : Promise.resolve(null)).catch(function () { return null; });
+    return Promise.all([promessa, avisos, cupons]).then(function (r) {
       var d = r[0];
       estado.dados = d;
       estado.avisos = r[1];
       desenharPeriodo();
       desenharAvisos(estado.avisos);
+      desenharCupons(r[2]);
       if (noServidor) desenharAgora(d.agora);
       $("#atualizado").textContent = "Atualizado às " + horaAgora();
     }).catch(function (e) {
@@ -550,6 +552,25 @@
         el("td", {}, b)));
     });
     $("#t-avisos-recentes").replaceChildren(t);
+  }
+
+  // Programa de cupons: quantos foram trocados e usados em cada recompensa (sem saber quem).
+  function desenharCupons(lista) {
+    if (!lista) {
+      $("#tiles-cupons").replaceChildren(el("p", { class: "vazio", text: noServidor
+        ? "Não foi possível carregar os cupons. Confira se a migração 011_cupons.sql já foi aplicada." : "Sem dados de cupons." }));
+      $("#t-cupons-tab").replaceChildren();
+      return;
+    }
+    var trocados = soma(lista, "resgatados"), usados = soma(lista, "usados");
+    var pontos = lista.reduce(function (s, x) { return s + x.custo * x.resgatados; }, 0);
+    $("#tiles-cupons").replaceChildren(
+      tile("Cupons trocados", num(trocados), "desde o início do piloto"),
+      tile("Usados na loja", num(usados), pct(usados, trocados) + " dos trocados"),
+      tile("Pontos trocados", num(pontos), "por cupons"));
+    $("#t-cupons-tab").replaceChildren(tabela(["Loja", "Recompensa", "Custo", "Trocados", "Usados"], lista.map(function (x) {
+      return [x.loja, x.titulo, num(x.custo) + " pts", num(x.resgatados), num(x.usados)];
+    }), [2, 3, 4]));
   }
 
   function desenharCadastradas() {
