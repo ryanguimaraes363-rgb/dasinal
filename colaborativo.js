@@ -353,7 +353,9 @@ window.DaSinalColaborativo = (function () {
       S.dados.obterGeometriaLinha(linha)
     ]).then(function (r) {
       var pts = r[1] && r[1].pontos && r[1].pontos.length > 1 ? r[1].pontos : linha.trajeto;
-      var rota = E.prepararRota(pts, { circular: !!linha.circular });
+      // Com os pontos: o deslize do marcador (deslize.js) não passa do próximo ponto.
+      var rota = E.prepararRota(pts, { circular: !!linha.circular,
+        paradas: (r[0] || []).map(function (p) { return [p.latitude, p.longitude]; }) });
       return { linha: linha, rota: rota, paradas: ordenarParadas(rota, r[0], !!linha.circular) };
     });
   }

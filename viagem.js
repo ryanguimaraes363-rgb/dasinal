@@ -33,7 +33,9 @@
     AMOSTRA_MIN_MS: 5000,
     DIST_NOVA_AMOSTRA_M: 50,
     VEL_MOVENDO_MS: 2,
-    ENVIO_MOVENDO_MS: 20000,
+    // Envia a cada 10 s andando (era 20 s): leitura mais nova = ônibus menos
+    // adiantado/atrasado no mapa quando ele para ou arranca (testes/adiantamento.html).
+    ENVIO_MOVENDO_MS: 10000,
     // Na rodovia (acima de ~54 km/h), envia mais vezes: em 20 s o ônibus anda 500 m.
     ENVIO_RAPIDO_MS: 10000,
     VEL_RAPIDO_MS: 15,

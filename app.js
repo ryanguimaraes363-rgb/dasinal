@@ -518,36 +518,16 @@
   }
 
   // ---------- Ônibus deslizando pela rota entre uma atualização e outra ----------
-  // A posição chega a cada ~10 s. Entre uma e outra, o marcador segue pela rota
-  // na velocidade atual (no máximo 15 s adiante). Se a atualização seguinte vier
-  // um pouco atrás de onde o marcador já está, ele não volta: espera o ônibus.
-  var DESLIZAR_MAX_S = 15;
-  var RECUO_MAX_M = 150;
+  // Regras em deslize.js (as mesmas medidas em testes/adiantamento.html): segue
+  // pela rota na velocidade do ônibus por até 10 s, nunca passa do próximo ponto
+  // de ônibus e, se a estimativa nova vier atrás, fica parado esperando por ela.
   var UE = window.DaSinalEstimador && window.DaSinalEstimador.util;
+  var DZ = window.DaSinalDeslize;
 
-  function sentidoNaRota(o) {
-    if (o.rota && o.rota.circular) return 1;
-    return o.sentido === "ida" ? 1 : o.sentido === "volta" ? -1 : 0;
-  }
-
-  function sExibido(m) {
-    var d = m._desliza;
-    if (!d) return null;
-    var s = d.s + d.v * Math.min((Date.now() - d.t0) / 1000, DESLIZAR_MAX_S);
-    return d.rota.circular ? UE.normalizarS(d.rota, s) : Math.max(0, Math.min(d.rota.total, s));
-  }
-
-  // Devolve true se o marcador deve ficar onde está (não recuar).
+  // Devolve true se o relógio abaixo cuida do marcador (senão, anima até a estimativa).
   function prepararDeslize(m, o) {
-    var dir = sentidoNaRota(o);
-    if (!UE || !o.rota || o.s == null || !dir || o.desatualizado || !(o.velocidade >= 1)) { m._desliza = null; return false; }
-    var base = o.s;
-    var atual = m._desliza && m._desliza.rota === o.rota ? sExibido(m) : null;
-    if (atual != null) {
-      var afrente = UE.difS(o.rota, atual, o.s) * dir;
-      if (afrente < 0 && afrente > -RECUO_MAX_M) base = atual;
-    }
-    m._desliza = { rota: o.rota, s: base, v: o.velocidade * dir, t0: Date.now() };
+    if (!DZ || !UE || !o.rota || o.s == null || o.desatualizado) { m._desliza = null; return false; }
+    m._desliza = DZ.receber(m._desliza, o, Date.now());
     return true;
   }
 
@@ -556,7 +536,7 @@
     Object.keys(marcadoresOnibus).forEach(function (k) {
       Object.keys(marcadoresOnibus[k]).forEach(function (id) {
         var m = marcadoresOnibus[k][id];
-        if (m._desliza) moverMarcador(m, UE.posicaoEm(m._desliza.rota, sExibido(m)), 1000);
+        if (m._desliza) moverMarcador(m, UE.posicaoEm(m._desliza.rota, DZ.posicao(m._desliza, Date.now())), 1000);
       });
     });
   }, 1000);

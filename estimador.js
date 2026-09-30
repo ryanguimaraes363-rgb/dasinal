@@ -57,7 +57,17 @@
     GRUPO_DV_MS: 3,               // diferença máxima de velocidade dentro do grupo
     TRAJETORIA_MAX_M: 50,         // distância média máxima entre as trajetórias recentes
 
-    EXTRAPOLAR_MAX_S: 30,         // quanto a posição pode ser projetada para "agora"
+    // Quanto a posição de cada pessoa pode ser projetada para "agora", para
+    // COMPARAR pessoas cujas leituras têm idades diferentes (agrupar, "desceu").
+    EXTRAPOLAR_MAX_S: 30,
+    // Quanto a posição MOSTRADA no mapa pode ser projetada. Com 30 s, o ônibus
+    // parado num semáforo continuava "andando" no mapa (testes/adiantamento.html:
+    // 10% do tempo mais de 100 m adiantado; com 15 s e envio a cada 10 s, 2%).
+    EXIBIR_MAX_S: 15,
+    // A projeção para "agora" não passa do próximo ponto de ônibus: se o ônibus
+    // parou nele, o mapa não o mostra lá na frente (era o que fazia o ônibus
+    // parecer mais rápido que o real). Se não parou, a próxima leitura o leva adiante.
+    PROJECAO_PARA_NO_PONTO: true,
     CONTINUIDADE_M: 150,          // para reconhecer o mesmo ônibus no ciclo seguinte
     SUAVIZACAO: 0.6,              // 1 = usa só a medida nova; 0 = só a previsão
     ESTIMATIVA_TTL_MS: 90000,     // sem amostra nova há mais que isso: o ônibus some do mapa
@@ -184,6 +194,31 @@
     // Pula trechos de comprimento zero (pontos repetidos).
     while (i < rota.pts.length - 1 && rota.acum[i] === rota.acum[i - 1]) i++;
     return rumo(rota.pts[i - 1], rota.pts[i]);
+  }
+
+  // Posição "s" de cada ponto de ônibus na rota, em ordem (calculada uma vez por rota).
+  function paradasS(rota) {
+    if (!rota._paradasS) {
+      rota._paradasS = (rota.paradas || []).map(function (p) { return projetar(rota, p[0], p[1]).s; })
+        .sort(function (a, b) { return a - b; });
+    }
+    return rota._paradasS;
+  }
+
+  // s + v·dt ao longo da rota, sem passar do próximo ponto de ônibus no sentido do
+  // movimento (se cfg.PROJECAO_PARA_NO_PONTO). Quem já está no ponto (até 1 m)
+  // pode seguir até o ponto seguinte.
+  function projetarAdiante(rota, s, v, dtS, cfg) {
+    var alvo = s + v * dtS;
+    var ps = cfg && cfg.PROJECAO_PARA_NO_PONTO ? paradasS(rota) : [];
+    if (!v || !ps.length) return normalizarS(rota, alvo);
+    var dir = v > 0 ? 1 : -1, desloc = Math.abs(v * dtS), limite = Infinity;
+    ps.forEach(function (p) {
+      var ate = difS(rota, s, p) * dir; // distância até o ponto, no sentido do movimento
+      if (!rota.circular) ate = (p - s) * dir;
+      if (ate > 1 && ate < limite) limite = ate;
+    });
+    return normalizarS(rota, s + dir * Math.min(desloc, limite));
   }
 
   // Encaixa lat/lng na rota: { s, d } (d = distância até a rota).
@@ -402,7 +437,9 @@
     mem.sentido = sentido;
 
     var idade = agora - ult.t;
-    var s = normalizarS(rota, ult.s + v * Math.min(idade / 1000, cfg.EXTRAPOLAR_MAX_S));
+    var s = projetarAdiante(rota, ult.s, v, Math.min(idade / 1000, cfg.EXTRAPOLAR_MAX_S), cfg);
+    // A mesma pessoa, projetada menos (só para a posição mostrada no mapa).
+    var sExib = projetarAdiante(rota, ult.s, v, Math.min(idade / 1000, cfg.EXIBIR_MAX_S), cfg);
 
     // Está na rota agora? (última amostra que deu para encaixar)
     var ultimaComRota = null;
@@ -458,6 +495,7 @@
 
     info.ult = ult;
     info.s = s;
+    info.sExib = sExib;
     info.v = v;
     info.sentido = sentido;
     info.idade = idade;
@@ -609,6 +647,8 @@
     var ws = g.membros.map(function (m) { return Math.max(m.w, 1e-6); });
     var somaW = ws.reduce(function (x, y) { return x + y; }, 0);
     var sMed = medianaPonderada(us, ws);
+    var usExib = g.membros.map(function (m) { return base + difS(rota, base, m.sExib != null ? m.sExib : m.s); });
+    var sExibMed = medianaPonderada(usExib, ws);
     var v = 0, varS = 0, varV = 0, dSoma = 0, idadeMin = Infinity, ultimaAmostra = 0;
     g.membros.forEach(function (m, i) { v += ws[i] * m.v; });
     v /= somaW;
@@ -620,7 +660,7 @@
       ultimaAmostra = Math.max(ultimaAmostra, m.ult.t);
     });
     return {
-      s: normalizarS(rota, sMed), v: v,
+      s: normalizarS(rota, sMed), sExib: normalizarS(rota, sExibMed), v: v,
       sigmaS: Math.sqrt(varS / somaW), sigmaV: Math.sqrt(varV / somaW),
       dMedia: dSoma / g.membros.length, idadeMin: idadeMin, ultimaAmostra: ultimaAmostra,
       nEff: g.membros.reduce(function (x, m) { return x + Math.min(m.w, 1); }, 0),
@@ -670,7 +710,13 @@
   }
 
   function previsto(rota, o, agora, cfg) {
-    return normalizarS(rota, o.s + o.v * Math.min(Math.max(agora - o.t, 0) / 1000, cfg.EXTRAPOLAR_MAX_S));
+    return projetarAdiante(rota, o.s, o.v, Math.min(Math.max(agora - o.t, 0) / 1000, cfg.EXTRAPOLAR_MAX_S), cfg);
+  }
+
+  // O mesmo, para a posição mostrada no mapa (projeção mais curta).
+  function previstoExib(rota, o, agora, cfg) {
+    var base = o.sExib != null ? o.sExib : o.s;
+    return projetarAdiante(rota, base, o.v, Math.min(Math.max(agora - o.t, 0) / 1000, cfg.EXIBIR_MAX_S), cfg);
   }
 
   // Liga cada grupo ao ônibus estimado no ciclo anterior (mantém o id e suaviza o movimento).
@@ -757,6 +803,7 @@
 
     var novosOnibus = [];
     var saida = [];
+    var internoS = {}; // id do ônibus -> posição interna (a de "saida" é a mostrada no mapa)
     var continuam = {};
     grupos.forEach(function (g) { if (g.anterior && exibivel(g, agora, cfg)) continuam[g.anterior.id] = true; });
     // Grupos que continuam um ônibus anterior primeiro; depois os novos.
@@ -774,10 +821,12 @@
         }
       }
       var o = g.anterior;
-      var s = g.r.s;
+      var s = g.r.s, sExib = g.r.sExib;
       if (o) {
         var p = previsto(rota, o, agora, cfg);
         s = normalizarS(rota, p + cfg.SUAVIZACAO * difS(rota, p, g.r.s));
+        var pE = previstoExib(rota, o, agora, cfg);
+        sExib = normalizarS(rota, pE + cfg.SUAVIZACAO * difS(rota, pE, g.r.sExib));
       }
       var primeiroVisto = o ? o.primeiroVistoEm : agora;
       var score = pontuar(g.r, agora - primeiroVisto);
@@ -787,10 +836,11 @@
       var membros = g.membros.map(function (m) { return m.id; });
 
       novosOnibus.push({
-        id: id, s: s, v: g.r.v, sentido: sentido, t: agora, ultimaAmostraEm: g.r.ultimaAmostra,
+        id: id, s: s, sExib: sExib, v: g.r.v, sentido: sentido, t: agora, ultimaAmostraEm: g.r.ultimaAmostra,
         primeiroVistoEm: primeiroVisto, membros: membros, score: score, confianca: confianca, qtd: g.r.n
       });
-      saida.push(formatarOnibus(rota, id, s, g.r.v, sentido, confianca, score, g.r.n, agora, g.r.ultimaAmostra, primeiroVisto, false));
+      internoS[id] = s;
+      saida.push(formatarOnibus(rota, id, sExib, g.r.v, sentido, confianca, score, g.r.n, agora, g.r.ultimaAmostra, primeiroVisto, false));
       g.membros.forEach(function (m) { m.noOnibus = id; });
     });
 
@@ -802,14 +852,19 @@
       if (agora - o.ultimaAmostraEm > cfg.ESTIMATIVA_TTL_MS) return;
       if (o.membros.some(function (id) { return infos[id] && infos[id].participa; })) return;
       novosOnibus.push(o);
-      saida.push(formatarOnibus(rota, o.id, previsto(rota, o, agora, cfg), o.v, o.sentido, "baixa",
+      internoS[o.id] = previsto(rota, o, agora, cfg);
+      saida.push(formatarOnibus(rota, o.id, previstoExib(rota, o, agora, cfg), o.v, o.sentido, "baixa",
         Math.round(o.score * 0.5), o.qtd, o.t, o.ultimaAmostraEm, o.primeiroVistoEm, true));
     });
 
     // ---------- Situação de cada viagem ----------
     var viagens = {};
     var ativos = {};
-    saida.forEach(function (o) { if (!o.desatualizado) ativos[o.id] = o; });
+    // Para medir quem "desceu": a posição interna do ônibus (mesma projeção das pessoas),
+    // não a mostrada no mapa.
+    saida.forEach(function (o) {
+      if (!o.desatualizado) ativos[o.id] = internoS[o.id] != null ? Object.assign({}, o, { s: internoS[o.id] }) : o;
+    });
 
     Object.keys(estado.viagens).forEach(function (id) {
       var mem = estado.viagens[id];
@@ -896,7 +951,8 @@
     estimar: estimar,
     util: {
       distanciaM: distanciaM, rumo: rumo, difAngulo: difAngulo, deslocar: deslocar,
-      normalizarS: normalizarS, difS: difS, posicaoEm: posicaoEm, rumoEm: rumoEm, projetar: projetar
+      normalizarS: normalizarS, difS: difS, posicaoEm: posicaoEm, rumoEm: rumoEm, projetar: projetar,
+      projetarAdiante: projetarAdiante
     }
   };
 });
