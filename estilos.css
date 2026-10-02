@@ -576,7 +576,13 @@ body.com-viagem #avisos { bottom: calc(var(--nav-h) + var(--faixa-h) + env(safe-
 .ranking li:nth-child(odd) { background: var(--card-2); }
 .ranking li.voce { background: var(--amarelo-claro); outline: 1.5px solid var(--amarelo); }
 .ranking-pos { width: 2.2rem; font-weight: 900; color: var(--navy-800); }
-.ranking-nome { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.ranking-quem { flex: 1; min-width: 0; display: grid; gap: .1rem; justify-items: start; }
+.ranking-nome { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+/* Nível embaixo do apelido: fica mais chamativo conforme sobe. */
+.ranking-nivel { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .78rem; font-weight: 700; color: var(--texto-2); }
+.ranking-nivel.nivel-3, .ranking-nivel.nivel-4 { color: var(--teal); }
+.ranking-nivel.nivel-5, .ranking-nivel.nivel-6 { color: var(--navy-700); font-weight: 800; }
+.ranking-nivel.nivel-7 { padding: .05rem .5rem; border-radius: 999px; background: var(--navy-900); color: var(--amarelo); font-weight: 800; }
 
 .historico { display: grid; gap: .7rem; }
 .historico-viagem { padding: .85rem 1rem; }

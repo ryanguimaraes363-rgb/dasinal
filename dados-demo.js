@@ -13,7 +13,7 @@
   Circular 1 (Centro via Santanense). Ruas, na ordem: Av. Getúlio Vargas,
   R. Silva Jardim, R. Manoel Corrêa, Pça. Olandim Tavares, Av. Dr. Miguel
   Augusto Gonçalves, R. Dr. Alcides Gonçalves, Av. Gov. Magalhães Pinto,
-  R. Ênio Pereira de Carvalho, Av. João Moreira de Carvalho, Av. Faria Tavares,
+  Av. Juscelino Kubitschek, Av. João Moreira de Carvalho, Av. Faria Tavares,
   R. Abel José de Faria, R. Augusto Alves de Souza, R. Jair Miguel,
   R. Luiz Ribeiro Filho, R. Pe. Antônio Vivaldi, R. Alexandrina Bernardes,
   R. Delmira Gonçalves, R. Oscar Fonseca, R. Ludovico Dias e volta ao Centro.
@@ -32,9 +32,8 @@ window.DASINAL_DEMO = {
         [-20.06579, -44.60197], // → R. Dr. Alcides Gonçalves
         [-20.06883, -44.60669], // → Av. Gov. Magalhães Pinto
         [-20.07690, -44.60576], // Av. Gov. Magalhães Pinto
-        [-20.08072, -44.61181], // R. Ênio Pereira de Carvalho
-        [-20.08585, -44.60967], // × Av. João Moreira de Carvalho
-        [-20.08559, -44.60901], // × Av. Faria Tavares
+        [-20.08280, -44.60778], // Av. João Moreira de Carvalho (desce direto da Av. JK)
+        [-20.08980, -44.61148], // Av. Faria Tavares
         [-20.09332, -44.61369], // × R. Abel José de Faria
         [-20.09554, -44.61377], // R. Abel José de Faria
         [-20.09586, -44.61323], // R. Augusto Alves de Souza
@@ -55,12 +54,11 @@ window.DASINAL_DEMO = {
     { id: 2, nome: "Rua Manoel Corrêa", latitude: -20.06994, longitude: -44.58051, linha_id: 1, ordem: 2 },
     { id: 3, nome: "Av. Dr. Miguel Augusto Gonçalves", latitude: -20.06579, longitude: -44.60197, linha_id: 1, ordem: 3 },
     { id: 4, nome: "Av. Gov. Magalhães Pinto", latitude: -20.06883, longitude: -44.60669, linha_id: 1, ordem: 4 },
-    { id: 5, nome: "Rua Ênio Pereira de Carvalho", latitude: -20.08072, longitude: -44.61181, linha_id: 1, ordem: 5 },
-    { id: 6, nome: "Av. Faria Tavares", latitude: -20.09332, longitude: -44.61369, linha_id: 1, ordem: 6 },
-    { id: 7, nome: "Rua Jair Miguel", latitude: -20.09339, longitude: -44.61167, linha_id: 1, ordem: 7 },
-    { id: 8, nome: "Rua Pe. Antônio Vivaldi", latitude: -20.09850, longitude: -44.61279, linha_id: 1, ordem: 8 },
-    { id: 9, nome: "Rua Delmira Gonçalves", latitude: -20.09229, longitude: -44.60787, linha_id: 1, ordem: 9 },
-    { id: 10, nome: "Rua Ludovico Dias", latitude: -20.09195, longitude: -44.60362, linha_id: 1, ordem: 10 }
+    { id: 6, nome: "Av. Faria Tavares", latitude: -20.09332, longitude: -44.61369, linha_id: 1, ordem: 5 },
+    { id: 7, nome: "Rua Jair Miguel", latitude: -20.09339, longitude: -44.61167, linha_id: 1, ordem: 6 },
+    { id: 8, nome: "Rua Pe. Antônio Vivaldi", latitude: -20.09850, longitude: -44.61279, linha_id: 1, ordem: 7 },
+    { id: 9, nome: "Rua Delmira Gonçalves", latitude: -20.09229, longitude: -44.60787, linha_id: 1, ordem: 8 },
+    { id: 10, nome: "Rua Ludovico Dias", latitude: -20.09195, longitude: -44.60362, linha_id: 1, ordem: 9 }
   ],
   onibus: [
     { id: 1, identificacao: "BUS-01", linha_id: 1, latitude: -20.06579, longitude: -44.60197, status: "em_movimento" }

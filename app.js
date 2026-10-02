@@ -1422,9 +1422,15 @@
     else {
       lista = el("ol", { class: "ranking" });
       ranking.slice(0, 20).forEach(function (p) {
+        // Nome e, embaixo, o nível da pessoa (o que ela já conquistou no total).
+        var quem = el("span", { class: "ranking-quem" },
+          el("span", { class: "ranking-nome", text: p.apelido + (p.voce ? " (você)" : "") }));
+        if (p.nivel) {
+          quem.append(el("span", { class: "ranking-nivel nivel-" + p.nivel.nivel, text: "Nível " + p.nivel.nivel + " · " + p.nivel.nome }));
+        }
         lista.append(el("li", { class: p.voce ? "voce" : "" },
           el("span", { class: "ranking-pos", text: p.posicao + "º" }),
-          el("span", { class: "ranking-nome", text: p.apelido + (p.voce ? " (você)" : "") }),
+          quem,
           el("strong", { text: p.pontos + " pts" })));
       });
     }

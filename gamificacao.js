@@ -11,7 +11,7 @@
   Interface: DaSinal.pontos
     resumo()                    Promise<{ pontosTotal, nivel, viagensValidadas, minutos, confiabilidade,
                                           semana, conquistas[], historico[], perfil }>
-    ranking()                   Promise<[{ posicao, apelido, pontos, voce }]>
+    ranking()                   Promise<[{ posicao, apelido, pontos, voce, nivel: { nivel, nome } | null }]>
     atualizarPerfil(apelido, aparece)   Promise (apelido público e aparecer no ranking)
     apagar()                    Promise (junto com "Excluir meus dados")
     aoMudar(cb)                 cb({ tipo: "pontuada" | "nao_pontuada", ... }) quando uma viagem é pontuada
@@ -63,10 +63,17 @@
   }
 
   // Participantes fictícios, só para o ranking da demonstração não ficar vazio.
+  // [apelido, pontos na semana, pontos no total (define o nível mostrado)]
   var RANKING_DEMO = [
-    ["Marina_09", 142], ["Seu Zé do 01", 118], ["Lu Ribeiro", 96], ["Caio.bus", 73],
-    ["Tati", 51], ["Rafa Itaúna", 38], ["Dona Cida", 24], ["Pedro H.", 12]
+    ["Marina_09", 142, 3260], ["Seu Zé do 01", 118, 1720], ["Lu Ribeiro", 96, 905], ["Caio.bus", 73, 460],
+    ["Tati", 51, 212], ["Rafa Itaúna", 38, 164], ["Dona Cida", 24, 61], ["Pedro H.", 12, 12]
   ];
+
+  // Nível (número e nome) para mostrar no ranking, a partir do número do nível.
+  function nivelPorNumero(n) {
+    var achado = P.NIVEIS.filter(function (x) { return x.nivel === Number(n); })[0];
+    return achado ? { nivel: achado.nivel, nome: achado.nome } : null;
+  }
 
   var demo = {
     resumo: function () {
@@ -88,8 +95,12 @@
     },
     ranking: function () {
       return demo.resumo().then(function (r) {
-        var lista = RANKING_DEMO.map(function (p) { return { apelido: p[0], pontos: p[1], voce: false }; });
-        if (r.perfil.aparece && r.perfil.apelido) lista.push({ apelido: r.perfil.apelido, pontos: r.semana, voce: true });
+        var lista = RANKING_DEMO.map(function (p) {
+          return { apelido: p[0], pontos: p[1], voce: false, nivel: nivelPorNumero(P.nivelDe(p[2]).nivel) };
+        });
+        if (r.perfil.aparece && r.perfil.apelido) {
+          lista.push({ apelido: r.perfil.apelido, pontos: r.semana, voce: true, nivel: nivelPorNumero(r.nivel.nivel) });
+        }
         lista.sort(function (a, b) { return b.pontos - a.pontos; });
         return lista.map(function (p, i) { return Object.assign({ posicao: i + 1 }, p); });
       });
@@ -199,7 +210,9 @@
     },
     ranking: function () {
       return rpc("ranking_semanal").then(function (lista) {
-        return (lista || []).map(function (p) { return { posicao: p.posicao, apelido: p.apelido, pontos: p.pontos, voce: !!p.voce }; });
+        return (lista || []).map(function (p) {
+          return { posicao: p.posicao, apelido: p.apelido, pontos: p.pontos, voce: !!p.voce, nivel: nivelPorNumero(p.nivel) };
+        });
       });
     },
     atualizarPerfil: function (apelido, aparece) {
