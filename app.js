@@ -2072,7 +2072,7 @@
     if (navigator.vibrate) { try { navigator.vibrate([200, 100, 200]); } catch (e) { /* nada */ } }
     if (alarme.tipo === "som") tocarSom();
     if (window.Notification && Notification.permission === "granted") {
-      try { new Notification("Dá sinal", { body: texto, icon: "logo.svg" }); } catch (e) { /* alguns celulares exigem service worker */ }
+      try { new Notification("Dá sinal", { body: texto, icon: "icone-192.png" }); } catch (e) { /* alguns celulares exigem service worker */ }
     }
   }
 
