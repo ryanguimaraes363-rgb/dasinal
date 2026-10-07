@@ -401,6 +401,7 @@ h3 { font-size: 1rem; }
 .menu-item em { font-style: normal; color: var(--texto-2); font-size: .85rem; font-weight: 700; }
 .menu-item:hover, .menu-detalhes summary:hover { background: var(--card-2); }
 .menu-item > span:last-child, .menu-detalhes summary > span:last-child { color: #9AA5B5; }
+button.menu-item { width: 100%; border: 0; background: none; text-align: left; }
 .menu-detalhes { display: block; padding: 0; }
 .menu-detalhes summary { list-style: none; cursor: pointer; }
 .menu-detalhes summary::-webkit-details-marker { display: none; }
@@ -487,6 +488,10 @@ h3 { font-size: 1rem; }
 
 .lista-modal { margin: .2rem 0 .8rem; padding-left: 1.1rem; color: var(--texto-2); line-height: 1.45; font-size: .92rem; }
 .lista-modal li + li { margin-top: .35rem; }
+/* Passo a passo (liberar a localização, instalar o app) */
+.lista-modal.passos { padding-left: 1.3rem; color: var(--texto); font-size: .98rem; }
+.lista-modal.passos li + li { margin-top: .55rem; }
+.lista-modal.passos li::marker { font-weight: 900; color: var(--navy-800); }
 .modal-caixa .opcao { margin-top: .6rem; }
 .link-botao {
   border: none; background: none; padding: 0; color: var(--navy-800); font-weight: 800; text-decoration: underline; text-underline-offset: 3px;

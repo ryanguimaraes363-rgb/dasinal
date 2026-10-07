@@ -914,6 +914,119 @@
     if (e.key === "Escape" && !$("#modal-loc").hidden) $("#loc-agora-nao").click();
     if (e.key === "Escape" && !$("#modal-viagem").hidden) $("#viagem-cancelar").click();
     if (e.key === "Escape" && !$("#modal-aviso").hidden) $("#aviso-cancelar").click();
+    if (e.key === "Escape" && !$("#modal-ajuda").hidden) $("#modal-ajuda-fechar").click();
+  });
+
+  // ---------- Passo a passo (liberar a localização, instalar o app) ----------
+
+  var ehIphone = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); // iPad se apresenta como Mac
+  var ehAndroid = /Android/i.test(navigator.userAgent);
+  var acaoDaAjuda = null;
+
+  // o: { icone, titulo, texto, passos: [..], nota?, acao?: { rotulo, fazer } }
+  function abrirAjuda(o) {
+    ultimoFocoAntesDoModal = document.activeElement;
+    $("#modal-ajuda-icone").replaceChildren(icone(o.icone || "info", 26));
+    $("#modal-ajuda-titulo").textContent = o.titulo;
+    $("#modal-ajuda-texto").textContent = o.texto;
+    var lista = $("#modal-ajuda-passos");
+    lista.replaceChildren();
+    o.passos.forEach(function (p) { lista.append(el("li", { text: p })); });
+    $("#modal-ajuda-nota").textContent = o.nota || "";
+    $("#modal-ajuda-nota").hidden = !o.nota;
+    acaoDaAjuda = o.acao || null;
+    $("#modal-ajuda-acao").hidden = !acaoDaAjuda;
+    if (acaoDaAjuda) $("#modal-ajuda-acao").textContent = acaoDaAjuda.rotulo;
+    $("#modal-ajuda").hidden = false;
+    $("#modal-ajuda-fechar").focus();
+  }
+  function fecharAjuda() {
+    $("#modal-ajuda").hidden = true;
+    if (ultimoFocoAntesDoModal && ultimoFocoAntesDoModal.focus) ultimoFocoAntesDoModal.focus();
+  }
+  $("#modal-ajuda-fechar").addEventListener("click", fecharAjuda);
+  $("#modal-ajuda-acao").addEventListener("click", function () {
+    var a = acaoDaAjuda;
+    fecharAjuda();
+    if (a) a.fazer();
+  });
+
+  // Permissão de localização do navegador, lida com antecedência: no toque em
+  // "Estou neste ônibus" já sabemos se está bloqueada (e mostramos como liberar
+  // em vez de começar uma viagem que morreria na hora).
+  var permissaoLoc = "desconhecido";
+  function lerPermissaoLoc() {
+    if (S.gps) S.gps.estadoPermissao().then(function (s) { permissaoLoc = s; });
+  }
+  lerPermissaoLoc();
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") lerPermissaoLoc();
+  });
+
+  function abrirAjudaLocalizacao() {
+    var passos = ehIphone ? [
+      "Na barra de endereço do Safari, toque em “aA” (ou no ícone ao lado do endereço) e depois em “Ajustes do Site”.",
+      "Em “Localização”, escolha “Permitir”.",
+      "Se não der certo: abra os Ajustes do iPhone, entre em “Privacidade e Segurança”, depois “Serviços de Localização”, deixe ligado e, em “Sites do Safari”, marque “Durante o Uso do App”.",
+      "Volte ao Dá sinal e toque de novo em “Estou neste ônibus”."
+    ] : ehAndroid ? [
+      "Toque no ícone à esquerda do endereço do site (um cadeado ou dois risquinhos).",
+      "Toque em “Permissões” e, em “Localização”, escolha “Permitir”.",
+      "Confira se a Localização do celular está ligada (deslize o dedo de cima para baixo na tela).",
+      "Volte ao Dá sinal e toque de novo em “Estou neste ônibus”."
+    ] : [
+      "Clique no ícone à esquerda do endereço do site (o cadeado).",
+      "Em “Localização”, escolha “Permitir”.",
+      "Recarregue a página e toque de novo em “Estou neste ônibus”."
+    ];
+    abrirAjuda({
+      icone: "pin",
+      titulo: "Libere a localização para compartilhar",
+      texto: "O navegador está bloqueando a localização do Dá sinal neste aparelho. Sem ela não dá para mostrar onde o ônibus está. Para liberar:",
+      passos: passos,
+      nota: "Sua localização só é usada durante a viagem e nunca aparece para outras pessoas."
+    });
+  }
+
+  // "Colocar na tela inicial": o Chrome oferece a instalação por este evento;
+  // no iPhone (e quando o evento não vem) mostramos o caminho pelo menu do navegador.
+  var promptInstalar = null;
+  var jaInstalado = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
+    window.navigator.standalone === true;
+  window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); promptInstalar = e; });
+  window.addEventListener("appinstalled", function () {
+    promptInstalar = null;
+    $("#btn-instalar").hidden = true;
+    avisar("Pronto! O Dá sinal está na sua tela inicial.");
+  });
+  $("#btn-instalar").hidden = jaInstalado;
+  $("#btn-instalar").addEventListener("click", function () {
+    if (promptInstalar) {
+      var p = promptInstalar;
+      promptInstalar = null; // o navegador só aceita usar o convite uma vez
+      p.prompt();
+      return;
+    }
+    abrirAjuda({
+      icone: "casa",
+      titulo: "Colocar o Dá sinal na tela inicial",
+      texto: "Assim ele abre como um aplicativo, em tela cheia, e fica fácil de achar na hora do ônibus.",
+      passos: ehIphone ? [
+        "Abra o Dá sinal no Safari.",
+        "Toque no botão Compartilhar (o quadrado com a seta para cima).",
+        "Role a lista e toque em “Adicionar à Tela de Início”.",
+        "Toque em “Adicionar”."
+      ] : ehAndroid ? [
+        "Toque nos três pontinhos no canto do Chrome.",
+        "Toque em “Adicionar à tela inicial” (ou “Instalar app”).",
+        "Confirme em “Instalar”."
+      ] : [
+        "No Chrome ou no Edge, clique no ícone de instalar no fim da barra de endereço.",
+        "Se não aparecer, abra o menu do navegador e escolha “Instalar Dá sinal”."
+      ],
+      nota: ehIphone ? "No iPhone, o app da tela inicial começa do zero. Se você tem pontos, crie antes a sua conta em Perfil › Minha conta e entre com ela no app." : ""
+    });
   });
 
   // ---------- "Estou neste ônibus" (viagem colaborativa) ----------
@@ -963,6 +1076,8 @@
     if (!S.viagem.disponivel()) { avisar("Seu navegador não oferece localização. O restante do app continua funcionando."); return; }
     avisarNavegadorEmbutido();
     var demo = window.DaSinalColaborativo.simulando();
+    // Localização bloqueada no navegador: explica como liberar, sem começar a viagem.
+    if (!demo && permissaoLoc === "denied") { abrirAjudaLocalizacao(); return; }
     // Com o consentimento já dado, só a demonstração pergunta de novo (para escolher o GPS simulado).
     if (S.viagem.consentimentoAceito() && !demo) { iniciarViagem(linha, false); return; }
     linhaDoModalViagem = linha;
@@ -1046,9 +1161,15 @@
     atualizarFaixaViagem(v);
     if (v && v.viagemId && v.estadoGps === "ok" && agradecida !== v.viagemId) {
       agradecida = v.viagemId;
-      avisar("Obrigado! Sua localização está ajudando a mostrar o ônibus da linha " + v.linhaNumero + ". Mantenha o app aberto.");
+      // Viagem retomada: o aviso de "continuando" já apareceu ao abrir o app.
+      if (!v.retomada) avisar("Obrigado! Sua localização está ajudando a mostrar o ônibus da linha " + v.linhaNumero + ". Mantenha o app aberto.");
     }
-    if (evento && evento.tipo === "fim" && FIM_VIAGEM[evento.motivo]) {
+    if (evento && evento.tipo === "fim" && evento.motivo === "permissao_negada") {
+      // Em vez de um aviso que some: o passo a passo para liberar.
+      permissaoLoc = "denied";
+      lerPermissaoLoc();
+      abrirAjudaLocalizacao();
+    } else if (evento && evento.tipo === "fim" && FIM_VIAGEM[evento.motivo]) {
       avisar(FIM_VIAGEM[evento.motivo], evento.motivo !== "usuario");
     }
     if (telaAtual === "perfil") atualizarPerfilConsentimento();
@@ -2088,8 +2209,19 @@
   atualizarFaixaViagem(S.viagem.atual());
   var interrompida = S.viagem.interrompida();
   if (interrompida) {
-    avisar("Sua viagem na linha " + interrompida.linhaNumero + " foi interrompida quando o app fechou. " +
-      "Toque em “Estou neste ônibus” para voltar a compartilhar.", true);
+    var pedirToque = function () {
+      avisar("Sua viagem na linha " + interrompida.linhaNumero + " foi interrompida quando o app fechou. " +
+        "Toque em “Estou neste ônibus” para " + (interrompida.retomavel ? "continuar." : "voltar a compartilhar."), true);
+    };
+    // Fechou há pouco e a localização já está liberada: continua a mesma viagem sozinho.
+    // Sem a permissão concedida, espera o toque (que também continua a mesma viagem).
+    if (interrompida.retomavel && S.gps) {
+      S.gps.estadoPermissao().then(function (s) {
+        if (s === "granted" && S.viagem.retomar()) {
+          avisar("Continuando sua viagem na linha " + interrompida.linhaNumero + ". Para parar, toque em “Saí do ônibus”.");
+        } else pedirToque();
+      });
+    } else pedirToque();
   }
   window.addEventListener("hashchange", rotear);
   rotear();

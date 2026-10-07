@@ -7,11 +7,18 @@
 <title>Dá sinal: seu transporte público, sem surpresa</title>
 <meta name="description" content="Consulte linhas de ônibus, veja onde o ônibus está no mapa e saiba o próximo ponto.">
 <link rel="icon" href="logo.svg" type="image/svg+xml">
+<!-- Instalar na tela inicial do celular ("Adicionar à tela inicial") -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icone-180.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Dá sinal">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800;0,900;1,900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="estilos.css?v=e2961a06">
+<link rel="stylesheet" href="estilos.css?v=bd61636c">
 </head>
 <body>
 
@@ -192,6 +199,7 @@
           <a class="menu-item" href="#/linhas/favoritas"><span data-icone="coracaoCheio" data-tam="20"></span><span>Minhas linhas favoritas</span><em id="perfil-qtd-fav"></em><span data-icone="avancar" data-tam="18"></span></a>
           <a class="menu-item" href="#/alarme"><span data-icone="sino" data-tam="20"></span><span>Meu alarme de ponto</span><em id="perfil-alarme"></em><span data-icone="avancar" data-tam="18"></span></a>
           <a class="menu-item" href="#/pontos"><span data-icone="pin" data-tam="20"></span><span>Pontos de ônibus</span><span data-icone="avancar" data-tam="18"></span></a>
+          <button type="button" class="menu-item" id="btn-instalar" hidden><span data-icone="casa" data-tam="20"></span><span>Colocar o Dá sinal na tela inicial</span><span data-icone="avancar" data-tam="18"></span></button>
           <details class="menu-item menu-detalhes">
             <summary><span data-icone="escudo" data-tam="20"></span><span>Privacidade e localização</span><span data-icone="avancar" data-tam="18"></span></summary>
             <p><strong>Minha localização no mapa:</strong> só é usada quando você toca no botão e autoriza. Ela não é gravada. Registramos apenas eventos de uso (linha consultada, ponto selecionado e horário) e, se você permitir, uma região aproximada de cerca de 1 km.</p>
@@ -320,6 +328,7 @@
     <div class="modal-icone" data-icone="sinal" data-tam="26"></div>
     <h2 id="modal-viagem-titulo">Compartilhar sua viagem?</h2>
     <p>Enquanto você estiver no ônibus da <strong id="modal-viagem-linha">linha</strong>, sua localização ajuda a mostrar para outros passageiros onde o ônibus está.</p>
+    <p>Em seguida o navegador vai pedir a sua localização: toque em <strong>Permitir</strong>.</p>
     <details>
       <summary>Como seus dados são usados</summary>
       <ul class="lista-modal">
@@ -327,7 +336,7 @@
         <li>Ninguém vê a sua localização. O mapa mostra só a posição <strong>estimada do ônibus</strong>, calculada juntando vários passageiros.</li>
         <li>As localizações são apagadas em até 24 horas.</li>
         <li>A coleta para quando você toca em <strong>Saí do ônibus</strong> ou quando percebemos que a viagem acabou.</li>
-        <li>Mantenha o app aberto: com a tela bloqueada, o navegador pode pausar a localização.</li>
+        <li>Mantenha o app aberto: com a tela bloqueada, o navegador pode pausar a localização. Se o app fechar e você reabrir em até 2 minutos, a mesma viagem continua.</li>
       </ul>
     </details>
     <label class="opcao" id="modal-viagem-simular" hidden>
@@ -337,6 +346,21 @@
     <div class="modal-acoes">
       <button type="button" class="btn btn-amarelo" id="viagem-concordo">Concordo, compartilhar</button>
       <button type="button" class="btn btn-contorno" id="viagem-cancelar">Agora não</button>
+    </div>
+  </div>
+</div>
+
+<!-- Passo a passo (liberar a localização, instalar o app). O texto é preenchido pelo app.js. -->
+<div class="modal" id="modal-ajuda" role="dialog" aria-modal="true" aria-labelledby="modal-ajuda-titulo" hidden>
+  <div class="modal-caixa">
+    <div class="modal-icone" id="modal-ajuda-icone" data-icone="pin" data-tam="26"></div>
+    <h2 id="modal-ajuda-titulo">Ajuda</h2>
+    <p id="modal-ajuda-texto"></p>
+    <ol class="lista-modal passos" id="modal-ajuda-passos"></ol>
+    <p class="av-nota" id="modal-ajuda-nota"></p>
+    <div class="modal-acoes">
+      <button type="button" class="btn btn-amarelo" id="modal-ajuda-acao" hidden></button>
+      <button type="button" class="btn btn-contorno" id="modal-ajuda-fechar">Entendi</button>
     </div>
   </div>
 </div>
@@ -386,14 +410,14 @@
 <script src="simulador-passageiros.js?v=ed2d550f"></script>
 <script src="deslize.js?v=4e68317b"></script>
 <script src="colaborativo.js?v=b9115d2b"></script>
-<script src="viagem.js?v=7e518186"></script>
+<script src="viagem.js?v=0ba26e17"></script>
 <script src="regras-pontos.js?v=27d364d1"></script>
 <script src="gamificacao.js?v=d01f1cd2"></script>
 <script src="avisos.js?v=6a6b8bd8"></script>
 <script src="conta.js?v=34ad6d16"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script src="cupons.js?v=57390c58"></script>
-<script src="app.js?v=0c78bd1a"></script>
+<script src="app.js?v=5ba1910e"></script>
 <script src="diagnostico-gps.js?v=49abd961"></script>
 </body>
 </html>

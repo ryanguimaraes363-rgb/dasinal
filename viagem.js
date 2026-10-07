@@ -48,6 +48,9 @@
     // Até lá a viagem continua e o app avisa o servidor que está vivo (lote vazio).
     GPS_IMPRECISO_MAX_MS: 600000,
     SINAL_DE_VIDA_MS: 30000,
+    // App fechou (celular bloqueado, troca de aplicativo) e reabriu em até 2,5 min:
+    // continua a MESMA viagem. O servidor encerra por inatividade aos 3 min.
+    RETOMAR_MAX_MS: 150000,
     DURACAO_MAX_MS: 3 * 3600000,
     VERIFICAR_MS: 5000
   };
@@ -114,7 +117,8 @@
       gpsFraco: estadoGps(st) === "impreciso",
       semSinal: !st.ultimaFix,
       enviadas: st.enviadas,
-      simulada: st.simulada
+      simulada: st.simulada,
+      retomada: st.retomada
     };
   }
 
@@ -150,7 +154,7 @@
     d0.lidas++;
     d0.ultimaPrecisao = Math.round(c.accuracy);
     if (d0.melhorPrecisao == null || c.accuracy < d0.melhorPrecisao) d0.melhorPrecisao = Math.round(c.accuracy);
-    if (d0.primeiraPosicaoMs == null) d0.primeiraPosicaoMs = Date.now() - st.inicio;
+    if (d0.primeiraPosicaoMs == null) d0.primeiraPosicaoMs = Date.now() - st.ligadoEm;
     st.ultimaLeitura = Date.now();
     logGps("posição (viagem) lat", c.latitude, "lng", c.longitude, "precisão", Math.round(c.accuracy) + " m",
       "horário", new Date(t).toISOString(), c.accuracy <= P.PRECISAO_MAX_M ? "ACEITA" : "DESCARTADA (imprecisa)");
@@ -240,6 +244,7 @@
       st.ultimoEnvio = Date.now();
       st.enviadas += lote.length;
       if (resp && resp.encerrada) { finalizar(resp.encerrada, false); return; }
+      guardarViagem();
       notificar({ tipo: "envio" });
     }, function () {
       // Falhou (sem rede): devolve para a fila e tenta no próximo ciclo.
@@ -254,9 +259,10 @@
     var agora = Date.now();
     if (agora - st.inicio > P.DURACAO_MAX_MS) { finalizar("tempo_max", true); return; }
     // Nenhuma posição (nem imprecisa) há 3 min: o GPS não está respondendo.
-    if (agora - (st.ultimaLeitura || st.inicio) > P.SEM_GPS_MAX_MS) { finalizar("sem_sinal_gps", true); return; }
+    // (Conta desde que o GPS foi ligado NESTA abertura do app: a viagem pode ter sido retomada.)
+    if (agora - (st.ultimaLeitura || st.ligadoEm) > P.SEM_GPS_MAX_MS) { finalizar("sem_sinal_gps", true); return; }
     // Há posições, mas só imprecisas há 10 min: não dá para ajudar a mostrar o ônibus.
-    if (agora - (st.ultimaFix || st.inicio) > P.GPS_IMPRECISO_MAX_MS) { finalizar("gps_impreciso", true); return; }
+    if (agora - (st.ultimaFix || st.ligadoEm) > P.GPS_IMPRECISO_MAX_MS) { finalizar("gps_impreciso", true); return; }
     tentarEnviar();
   }
 
@@ -274,7 +280,9 @@
     st = null;
     v.fimMotivo = motivo;
     if (v.watchId != null && v.fonte) v.fonte.clearWatch(v.watchId);
-    logGps("viagem encerrada:", motivo, "| diagnóstico:", JSON.stringify(resumoDiag(v)));
+    // Tirado ANTES de soltar a tela: depois disso "telaLigada" sairia sempre falso.
+    var diagFinal = resumoDiag(v);
+    logGps("viagem encerrada:", motivo, "| diagnóstico:", JSON.stringify(diagFinal));
     clearInterval(v.timer);
     if (v.cancelarAcompanhamento) v.cancelarAcompanhamento();
     if (v.wake) { try { v.wake.release(); } catch (e) { /* já liberado */ } }
@@ -285,7 +293,7 @@
       // Manda antes o diagnóstico final (só contagens), para ficar registrado também
       // quando o GPS nunca deu posição (erros 2/3).
       var b = backend();
-      b.enviar(v.viagemId, [], resumoDiag(v)).catch(function () {}).then(function () {
+      b.enviar(v.viagemId, [], diagFinal).catch(function () {}).then(function () {
         return b.encerrar(v.viagemId, motivo);
       }).catch(function () { /* o servidor encerra por inatividade */ });
     }
@@ -305,6 +313,8 @@
   function novoEstado(linha, fonte, simulada) {
     return {
       viagemId: null, linhaId: linha.id, linhaNumero: linha.numero, inicio: Date.now(),
+      // ligadoEm: quando o GPS foi ligado nesta abertura do app (numa viagem retomada, "inicio" é mais antigo).
+      ligadoEm: Date.now(), retomada: false,
       fila: [], ultimaGuardada: null, ultimaFix: null, ultimaLeitura: null, ultimoErro: null,
       ultimoEnvio: 0, enviando: false, enviadas: 0,
       movendo: true, situacao: null, onibus: null,
@@ -322,9 +332,49 @@
     st.timer = setInterval(verificar, P.VERIFICAR_MS);
     st.cancelarAcompanhamento = b.acompanhar(st.viagemId, aoSituacao);
     manterTelaLigada();
-    gravarLocal(CHAVE_VIAGEM, { linhaId: linha.id, linhaNumero: linha.numero, inicio: st.inicio });
+    guardarViagem();
     notificar({ tipo: "inicio" });
     tentarEnviar(); // o que o GPS já mandou enquanto esperava o servidor
+  }
+
+  // ---------- Retomar depois que o app fechou ----------
+  // O celular bloqueia a tela ou a pessoa troca de aplicativo e o navegador fecha
+  // a página. Guardamos NESTE aparelho o código da viagem e a hora do último
+  // contato com o servidor; ao reabrir dentro de RETOMAR_MAX_MS a mesma viagem
+  // continua (sem perder o que já foi validado). Depois disso, só com um novo toque.
+
+  function guardarViagem() {
+    if (!st || !st.viagemId) return;
+    gravarLocal(CHAVE_VIAGEM, { linhaId: st.linhaId, linhaNumero: st.linhaNumero, inicio: st.inicio,
+      viagemId: st.viagemId, sinal: Date.now() });
+  }
+
+  function podeRetomar(reg) {
+    var C = window.DaSinalColaborativo;
+    // Só com o servidor: na demonstração a viagem vive na memória da página, que se perdeu.
+    return !!(reg && reg.viagemId && C && C.noServidor && navigator.geolocation && window.isSecureContext !== false &&
+      S.viagem.consentimentoAceito() && Date.now() - reg.inicio < P.DURACAO_MAX_MS &&
+      Date.now() - (reg.sinal || reg.inicio) < P.RETOMAR_MAX_MS);
+  }
+
+  function retomarDe(reg) {
+    var b = backend();
+    var linha = { id: reg.linhaId, numero: reg.linhaNumero };
+    var v = st = novoEstado(linha, navigator.geolocation, false);
+    st.inicio = reg.inicio;
+    st.viagemId = reg.viagemId;
+    st.retomada = true;
+    st.watchId = navigator.geolocation.watchPosition(aoPosicao, aoErro, OPCOES_GPS);
+    logGps("viagem retomada, linha", linha.numero, "| watchPosition id", st.watchId);
+    comecar(b, linha);
+    // Avisa o servidor que voltou (sem posição ainda). Se a viagem já tiver sido
+    // encerrada lá, termina aqui também com o motivo certo.
+    b.enviar(reg.viagemId, [], resumoDiag(v)).then(function (resp) {
+      if (st !== v) return;
+      if (resp && resp.encerrada) { finalizar(resp.encerrada, false); return; }
+      st.ultimoEnvio = Date.now();
+      guardarViagem();
+    }, function () { /* sem rede agora: o envio normal tenta de novo */ });
   }
 
   // ---------- Interface pública ----------
@@ -365,6 +415,12 @@
       if (!S.viagem.disponivel()) return Promise.reject({ codigo: "sem_suporte" });
       if (!S.viagem.consentimentoAceito()) return Promise.reject({ codigo: "sem_consentimento" });
       var b = backend();
+      // Mesma linha de uma viagem que o app fechou há pouco: continua a mesma, sem criar outra.
+      var guardada = lerLocal(CHAVE_VIAGEM);
+      if (!opcoes.simularGps && guardada && String(guardada.linhaId) === String(linha.id) && podeRetomar(guardada)) {
+        retomarDe(guardada);
+        return Promise.resolve();
+      }
       iniciando = true;
       var fim = function (x) { iniciando = false; return x; };
       var usarSimulado = opcoes.simularGps && window.DaSinalColaborativo.gpsDemonstracao;
@@ -428,12 +484,24 @@
       };
     },
 
-    // Viagem que ficou aberta quando o app foi fechado. A coleta NÃO é
-    // retomada sozinha: a pessoa decide se volta a compartilhar.
+    // Viagem que ficou aberta quando o app foi fechado. Devolve { linhaNumero, retomavel }.
+    // retomavel: fechou há pouco, dá para continuar a mesma viagem (retomar() ou um
+    // novo toque na mesma linha). Se não, a pessoa decide se começa outra.
     interrompida: function () {
       var v = lerLocal(CHAVE_VIAGEM);
-      gravarLocal(CHAVE_VIAGEM, null);
-      return v && Date.now() - v.inicio < P.DURACAO_MAX_MS ? v : null;
+      if (!v || !(Date.now() - v.inicio < P.DURACAO_MAX_MS)) { gravarLocal(CHAVE_VIAGEM, null); return null; }
+      v.retomavel = podeRetomar(v);
+      if (!v.retomavel) gravarLocal(CHAVE_VIAGEM, null);
+      return v;
+    },
+
+    // Continua a viagem guardada (ver "Retomar" acima). Devolve true se retomou.
+    // O app só chama sozinho quando a permissão de localização já está concedida.
+    retomar: function () {
+      var reg = lerLocal(CHAVE_VIAGEM);
+      if (st || iniciando || !podeRetomar(reg)) return false;
+      retomarDe(reg);
+      return true;
     },
 
     parametros: P
