@@ -169,7 +169,8 @@ h3 { font-size: 1rem; }
 .secao-titulo { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: .8rem; }
 .secao-titulo a { color: var(--navy-800); font-weight: 800; font-size: .92rem; text-decoration: underline; text-underline-offset: 3px; }
 
-.grade { display: grid; gap: .9rem; }
+/* minmax(0, 1fr): a coluna nunca fica mais larga que a tela, mesmo com nome comprido. */
+.grade { display: grid; grid-template-columns: minmax(0, 1fr); gap: .9rem; }
 
 .badge-linha {
   display: inline-flex; flex-direction: column; align-items: center; justify-content: center; flex: none;
@@ -187,7 +188,8 @@ h3 { font-size: 1rem; }
 }
 .card-fav-topo { display: flex; align-items: center; gap: .85rem; position: relative; }
 .linha-textos { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .15rem; }
-.linha-textos strong { font-size: 1.05rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Nome comprido ("Jadir Marinho (via Universitário)") quebra em outra linha em vez de empurrar o cartão. */
+.linha-textos strong { font-size: 1.05rem; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
 .trajeto { display: flex; align-items: center; gap: .35rem; color: var(--texto-2); font-size: .92rem; margin: 0; flex-wrap: wrap; }
 .cobrir::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
 .card-fav .btn-fav, .item-linha .btn-fav { position: relative; z-index: 1; }
@@ -232,7 +234,7 @@ h3 { font-size: 1rem; }
 }
 .abas button[aria-selected="true"] { background: var(--navy-900); color: #fff; }
 
-.lista { display: grid; gap: .7rem; }
+.lista { display: grid; grid-template-columns: minmax(0, 1fr); gap: .7rem; }
 .item-linha {
   position: relative; display: flex; align-items: center; gap: .85rem;
   background: var(--card); border-radius: 14px; box-shadow: var(--sombra);
