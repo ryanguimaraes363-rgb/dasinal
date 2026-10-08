@@ -1414,6 +1414,17 @@
     atualizarPerfilConsentimento();
     atualizarCardPontos();
     atualizarPerfilConta();
+    atualizarMenuAdmin();
+  }
+
+  // "Área administrativa" só aparece para quem é administrador (o servidor confere
+  // pela conta que está logada). Na demonstração aparece sempre: lá o painel é fictício.
+  // Esconder o item é só conforto: o painel já recusa quem não é administrador.
+  function atualizarMenuAdmin() {
+    var item = $("#menu-admin");
+    if (S.modo === "demo" || !S.client) { item.hidden = false; return; }
+    S.client.rpc("is_admin").then(function (r) { item.hidden = !(r && r.data === true); },
+      function () { item.hidden = true; });
   }
 
   function atualizarCardPontos() {
