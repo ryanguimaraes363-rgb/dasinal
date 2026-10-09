@@ -916,6 +916,7 @@
     if (e.key === "Escape" && !$("#modal-viagem").hidden) $("#viagem-cancelar").click();
     if (e.key === "Escape" && !$("#modal-aviso").hidden) $("#aviso-cancelar").click();
     if (e.key === "Escape" && !$("#modal-ajuda").hidden) $("#modal-ajuda-fechar").click();
+    if (e.key === "Escape" && !$("#modal-convite").hidden) $("#convite-fechar").click();
   });
 
   // ---------- Passo a passo (liberar a localização, instalar o app) ----------
@@ -992,9 +993,52 @@
 
   // Para o assistente de dúvidas (assistente.js) abrir os passos a passo.
   window.DaSinalAjuda = {
+    convidar: function () { abrirConvite(); },
     localizacao: abrirAjudaLocalizacao,
     instalar: function () { $("#btn-instalar").click(); }
   };
+
+  // ---------- Convidar um amigo (QR code + link) ----------
+  // O sistema só funciona bem com mais gente no mesmo ônibus: o convite é o caminho.
+  // Fora do site publicado (teste local), aponta para o endereço oficial.
+  var URL_DO_SITE = location.protocol === "https:" ? location.origin + location.pathname : "https://ryanguimaraes363-rgb.github.io/dasinal/";
+  var TEXTO_CONVITE = "Não precisa baixar nada, é só abrir. O Dá sinal mostra onde o ônibus está em Itaúna, com a ajuda de quem está nele.";
+
+  function abrirConvite() {
+    ultimoFocoAntesDoModal = document.activeElement;
+    var caixa = $("#convite-qr");
+    caixa.replaceChildren();
+    if (window.qrcode) {
+      var q = window.qrcode(0, "M");
+      q.addData(URL_DO_SITE);
+      q.make();
+      caixa.append(el("span", { html: q.createSvgTag(6, 2), role: "img", "aria-label": "QR code com o endereço do Dá sinal" }));
+    }
+    caixa.hidden = !window.qrcode; // sem a biblioteca do QR (rede ruim), fica só o link
+    $("#convite-link").textContent = URL_DO_SITE.replace(/^https?:\/\//, "");
+    $("#convite-compartilhar").textContent = navigator.share ? "Enviar o link" : "Copiar o link";
+    $("#modal-convite").hidden = false;
+    $("#convite-fechar").focus();
+  }
+  function fecharConvite() {
+    $("#modal-convite").hidden = true;
+    if (ultimoFocoAntesDoModal && ultimoFocoAntesDoModal.focus) ultimoFocoAntesDoModal.focus();
+  }
+  function copiarConvite() {
+    var ok = function () { avisar("Link copiado. Cole no WhatsApp ou onde quiser."); };
+    var falhou = function () { avisar("Não deu para copiar. O endereço é " + URL_DO_SITE.replace(/^https?:\/\//, ""), true); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(URL_DO_SITE).then(ok, falhou);
+    else falhou();
+  }
+  $("#btn-convidar").addEventListener("click", abrirConvite);
+  $("#convite-fechar").addEventListener("click", fecharConvite);
+  $("#convite-compartilhar").addEventListener("click", function () {
+    if (!navigator.share) { copiarConvite(); return; }
+    // A pessoa pode cancelar a folha de compartilhamento: isso não é erro.
+    navigator.share({ title: "Dá sinal", text: TEXTO_CONVITE, url: URL_DO_SITE }).then(function () {}, function (e) {
+      if (!e || e.name !== "AbortError") copiarConvite();
+    });
+  });
 
   // "Colocar na tela inicial": o Chrome oferece a instalação por este evento;
   // no iPhone (e quando o evento não vem) mostramos o caminho pelo menu do navegador.

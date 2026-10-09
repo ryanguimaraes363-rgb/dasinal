@@ -23,7 +23,7 @@
       r: ["O ônibus só aparece quando alguém dentro dele está compartilhando a viagem.",
         "Com uma pessoa só, leva uns 2 minutos e o ônibus precisa parar em um ponto. Com mais gente, aparece mais rápido.",
         "Está no ônibus? Toque em “Estou neste ônibus” e ajude quem está esperando."],
-      acoes: [{ rotulo: "Ver as linhas", ir: "#/linhas" }]
+      acoes: [{ rotulo: "Ver as linhas", ir: "#/linhas" }, { rotulo: "Convidar um amigo", ajuda: "convidar" }]
     },
     {
       p: "O que é confiança alta, média e baixa?",

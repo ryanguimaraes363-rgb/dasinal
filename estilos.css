@@ -958,3 +958,10 @@ body.com-jogo { overflow: hidden; }
 }
 /* Com o jogo aberto, os avisos sobem para o topo: embaixo cobririam o ônibus. */
 body.com-jogo #avisos { bottom: auto; top: calc(64px + env(safe-area-inset-top)); }
+/* ---------- Convidar um amigo ---------- */
+.convite { text-align: center; }
+.convite .modal-icone { margin-left: auto; margin-right: auto; }
+.convite-qr { display: grid; place-items: center; margin: .2rem auto .6rem; padding: 10px; width: max-content; max-width: 100%; background: #fff; border-radius: 16px; border: 2px solid var(--borda); }
+.convite-qr[hidden] { display: none; }
+.convite-qr svg { display: block; width: min(230px, 62vw); height: auto; }
+.modal-caixa .convite-link { font-weight: 800; color: var(--navy-900); overflow-wrap: anywhere; margin-bottom: .2rem; }
