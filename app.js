@@ -156,6 +156,7 @@
     cancelarTela = [];
     versaoTela++;
     telaAtual = nome;
+    document.body.setAttribute("data-tela", nome); // o assistente (assistente.js) se esconde no mapa
     Object.keys(telas).forEach(function (k) { telas[k].hidden = k !== nome; });
     var ativa = NAV_DA_TELA[nome] || nome;
     document.querySelectorAll(".nav a[data-tela]").forEach(function (a) {
@@ -988,6 +989,12 @@
       nota: "Sua localização só é usada durante a viagem e nunca aparece para outras pessoas."
     });
   }
+
+  // Para o assistente de dúvidas (assistente.js) abrir os passos a passo.
+  window.DaSinalAjuda = {
+    localizacao: abrirAjudaLocalizacao,
+    instalar: function () { $("#btn-instalar").click(); }
+  };
 
   // "Colocar na tela inicial": o Chrome oferece a instalação por este evento;
   // no iPhone (e quando o evento não vem) mostramos o caminho pelo menu do navegador.

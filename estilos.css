@@ -822,3 +822,72 @@ body.com-viagem #avisos { bottom: calc(var(--nav-h) + var(--faixa-h) + env(safe-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Assistente de dúvidas (assistente.js) ---------- */
+.assistente-botao {
+  position: fixed; z-index: 1550; right: 14px;
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 14px);
+  width: 62px; height: 62px; padding: 0; border-radius: 50%;
+  background: #fff; border: 3px solid var(--amarelo); box-shadow: var(--sombra-forte);
+  display: grid; place-items: center; overflow: hidden;
+  animation: assistente-flutua 3.2s ease-in-out infinite;
+}
+.assistente-botao img { width: 54px; height: 54px; margin-top: 6px; transition: transform .2s ease; }
+.assistente-botao:hover img, .assistente-botao.aberto img { transform: scale(1.08) rotate(-6deg); }
+.assistente-botao.aberto { animation: none; background: var(--amarelo-claro); }
+/* Quem nunca abriu: o personagem acena de vez em quando e um anel chama a atenção. */
+.assistente-botao.novo img { animation: assistente-acena 4s ease-in-out infinite 1.5s; }
+.assistente-botao.novo::after {
+  content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 3px solid var(--amarelo);
+  animation: assistente-anel 2.4s ease-out infinite;
+}
+/* Com a viagem em andamento a faixa ocupa o pé da tela: o botão sobe. No mapa ele some (não cobre o ônibus). */
+body.com-viagem .assistente-botao { bottom: calc(var(--nav-h) + var(--faixa-h) + env(safe-area-inset-bottom) + 14px); }
+body[data-tela="mapa"] .assistente-botao, body[data-tela="mapa"] .assistente-balao { display: none; }
+
+.assistente-balao {
+  position: fixed; z-index: 1560; right: 14px;
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 88px);
+  width: min(340px, calc(100vw - 28px)); max-height: min(70vh, 520px);
+  display: flex; flex-direction: column; overflow: hidden;
+  background: #fff; border-radius: 22px; box-shadow: var(--sombra-forte); border: 1px solid var(--borda);
+  transform-origin: bottom right; animation: assistente-abre .28s cubic-bezier(.2, .9, .3, 1.2) both;
+}
+.assistente-balao[hidden] { display: none; }
+body.com-viagem .assistente-balao { bottom: calc(var(--nav-h) + var(--faixa-h) + env(safe-area-inset-bottom) + 88px); }
+.assistente-topo { display: flex; align-items: center; gap: .6rem; padding: .7rem .8rem .5rem; background: var(--amarelo-claro); }
+.assistente-topo > div { flex: 1; min-width: 0; display: grid; }
+.assistente-topo strong { font-weight: 900; font-size: 1.02rem; line-height: 1.2; color: var(--navy-900); }
+.assistente-topo small { color: var(--texto-2); font-weight: 700; font-size: .82rem; }
+.assistente-figura { width: 74px; height: 70px; object-fit: contain; flex: none; transform-origin: 50% 90%; }
+.assistente-figura.acenando { animation: assistente-acena 1.6s ease-in-out infinite; }
+.assistente-figura.animada { animation: assistente-pula .9s ease-out both; }
+.assistente-fechar {
+  flex: none; align-self: flex-start; width: 34px; height: 34px; border-radius: 50%; border: none;
+  background: rgba(11, 36, 71, .08); color: var(--navy-900); font-size: 1.3rem; font-weight: 800; line-height: 1;
+}
+.assistente-corpo { overflow-y: auto; padding: .6rem .7rem .8rem; }
+.assistente-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
+.assistente-lista li { animation: assistente-entra .3s ease-out both; }
+.assistente-lista li:nth-child(2) { animation-delay: .04s; } .assistente-lista li:nth-child(3) { animation-delay: .08s; }
+.assistente-lista li:nth-child(4) { animation-delay: .12s; } .assistente-lista li:nth-child(5) { animation-delay: .16s; }
+.assistente-lista li:nth-child(6) { animation-delay: .2s; } .assistente-lista li:nth-child(7) { animation-delay: .24s; }
+.assistente-lista li:nth-child(8) { animation-delay: .28s; }
+.assistente-lista button {
+  width: 100%; text-align: left; padding: .65rem .8rem; border-radius: 12px; border: 1.5px solid var(--borda);
+  background: var(--card-2); color: var(--navy-900); font-weight: 800; font-size: .93rem; line-height: 1.25;
+}
+.assistente-lista button:hover { border-color: var(--amarelo); background: var(--amarelo-claro); }
+.assistente-resposta { animation: assistente-entra .3s ease-out both; }
+.assistente-resposta p { margin: 0 0 .6rem; color: var(--texto); line-height: 1.45; font-size: .95rem; }
+.assistente-acoes { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .3rem; }
+
+@keyframes assistente-flutua { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes assistente-acena { 0%, 60%, 100% { transform: rotate(0); } 10%, 30%, 50% { transform: rotate(-9deg); } 20%, 40% { transform: rotate(9deg); } }
+@keyframes assistente-pula { 0% { transform: scale(.7) translateY(10px); } 55% { transform: scale(1.1) translateY(-4px); } 100% { transform: none; } }
+@keyframes assistente-anel { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(1.55); opacity: 0; } }
+@keyframes assistente-abre { from { opacity: 0; transform: scale(.6) translateY(20px); } to { opacity: 1; transform: none; } }
+@keyframes assistente-entra { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .assistente-botao, .assistente-botao img, .assistente-botao::after, .assistente-balao, .assistente-figura, .assistente-lista li, .assistente-resposta { animation: none !important; }
+}
