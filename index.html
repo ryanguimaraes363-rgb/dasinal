@@ -18,7 +18,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800;0,900;1,900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="estilos.css?v=1d6296b3">
+<link rel="stylesheet" href="estilos.css?v=f106ed3a">
 </head>
 <body>
 
@@ -198,6 +198,7 @@
           <a class="menu-item" href="#/linhas/favoritas"><span data-icone="coracaoCheio" data-tam="20"></span><span>Minhas linhas favoritas</span><em id="perfil-qtd-fav"></em><span data-icone="avancar" data-tam="18"></span></a>
           <a class="menu-item" href="#/alarme"><span data-icone="sino" data-tam="20"></span><span>Meu alarme de ponto</span><em id="perfil-alarme"></em><span data-icone="avancar" data-tam="18"></span></a>
           <a class="menu-item" href="#/pontos"><span data-icone="pin" data-tam="20"></span><span>Pontos de ônibus</span><span data-icone="avancar" data-tam="18"></span></a>
+          <button type="button" class="menu-item" id="btn-jogo"><span data-icone="bus" data-tam="20"></span><span>Jogo do motorista</span><em id="perfil-jogo"></em><span data-icone="avancar" data-tam="18"></span></button>
           <button type="button" class="menu-item" id="btn-instalar" hidden><span data-icone="casa" data-tam="20"></span><span>Colocar o Dá sinal na tela inicial</span><span data-icone="avancar" data-tam="18"></span></button>
           <details class="menu-item menu-detalhes">
             <summary><span data-icone="escudo" data-tam="20"></span><span>Privacidade e localização</span><span data-icone="avancar" data-tam="18"></span></summary>
@@ -393,6 +394,7 @@
     <span class="faixa-icone" data-icone="sinal" data-tam="20"></span>
     <span><strong id="faixa-titulo">Compartilhando sua viagem</strong><small id="faixa-status" role="status" aria-live="polite"></small></span>
   </a>
+  <button type="button" class="faixa-jogo" id="faixa-jogo" aria-label="Jogar enquanto viaja"><img src="assistente-rosto.png" alt="" width="34" height="34"><span>Jogar</span></button>
   <button type="button" class="btn btn-amarelo btn-pequeno" id="faixa-sair"><span data-icone="sair" data-tam="18"></span>Saí do ônibus</button>
 </div>
 
@@ -416,7 +418,8 @@
 <script src="conta.js?v=34ad6d16"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script src="cupons.js?v=57390c58"></script>
-<script src="app.js?v=72f428ac"></script>
+<script src="jogo.js?v=494ee20f"></script>
+<script src="app.js?v=877b5e65"></script>
 <script src="diagnostico-gps.js?v=49abd961"></script>
 <script src="assistente.js?v=e3db6bd8"></script>
 </body>

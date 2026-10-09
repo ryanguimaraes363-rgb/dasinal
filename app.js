@@ -1163,11 +1163,32 @@
 
   $("#faixa-sair").addEventListener("click", function () { S.viagem.encerrar("usuario"); });
 
+  // ---------- Jogo do motorista (jogo.js): só durante uma viagem compartilhada ----------
+  // É o motivo para a pessoa ficar com o app aberto; a coleta continua por baixo do jogo.
+  var J = window.DaSinalJogo;
+  function abrirJogo() {
+    if (!J) return;
+    var v = S.viagem.atual();
+    if (!v) { avisar("O jogo fica disponível durante a viagem. Toque em “Estou neste ônibus” em uma linha para jogar.", true); return; }
+    J.abrir();
+    J.viagem(v, textoSituacaoViagem(v));
+  }
+  $("#faixa-jogo").addEventListener("click", abrirJogo);
+  $("#btn-jogo").addEventListener("click", abrirJogo);
+  if (J) J.aoPedirSaida(function () { S.viagem.encerrar("usuario"); });
+  function dicaDoJogo() { // uma vez por aparelho, quando a primeira viagem engrena
+    if (!J || lerLocal("dasinal.jogo.dica", false)) return;
+    gravarLocal("dasinal.jogo.dica", true);
+    avisar("Novidade: toque em “Jogar” na faixa azul para se distrair enquanto viaja.", true);
+  }
+
   var agradecida = null; // viagem que já recebeu o "Obrigado"
   S.viagem.aoMudar(function (v, evento) {
     atualizarFaixaViagem(v);
+    if (J) J.viagem(v, v ? textoSituacaoViagem(v) : null); // viagem acabou: o jogo fecha sozinho
     if (v && v.viagemId && v.estadoGps === "ok" && agradecida !== v.viagemId) {
       agradecida = v.viagemId;
+      dicaDoJogo();
       // Viagem retomada: o aviso de "continuando" já apareceu ao abrir o app.
       if (!v.retomada) avisar("Obrigado! Sua localização está ajudando a mostrar o ônibus da linha " + v.linhaNumero + ". Mantenha o app aberto.");
     }
@@ -1418,6 +1439,7 @@
     mostrarTela("perfil");
     $("#perfil-qtd-fav").textContent = favoritos.length ? String(favoritos.length) : "";
     $("#perfil-alarme").textContent = alarme && alarme.ativo ? "Ativo" : "";
+    $("#perfil-jogo").textContent = J && J.recorde() ? "Recorde: " + J.recorde() : "";
     atualizarPerfilConsentimento();
     atualizarCardPontos();
     atualizarPerfilConta();

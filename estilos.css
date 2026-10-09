@@ -891,3 +891,70 @@ body.com-viagem .assistente-balao { bottom: calc(var(--nav-h) + var(--faixa-h) +
 @media (prefers-reduced-motion: reduce) {
   .assistente-botao, .assistente-botao img, .assistente-botao::after, .assistente-balao, .assistente-figura, .assistente-lista li, .assistente-resposta { animation: none !important; }
 }
+
+/* ---------- Jogo do motorista (jogo.js) ---------- */
+/* Botão na faixa de viagem */
+.faixa-jogo {
+  flex: none; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 3px 8px 2px; border-radius: 14px;
+  border: 2px solid var(--amarelo); background: #fff; color: var(--navy-900); font-weight: 900; font-size: .68rem; line-height: 1;
+  animation: assistente-flutua 2.6s ease-in-out infinite;
+}
+.faixa-jogo img { width: 30px; height: 30px; }
+/* Tela cheia por cima do app (abaixo dos avisos e das janelas, que precisam aparecer por cima). */
+.jg { position: fixed; inset: 0; z-index: 1900; display: flex; flex-direction: column; background: #03213B; color: #fff; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.jg[hidden] { display: none; }
+body.com-jogo { overflow: hidden; }
+.jg-barra { flex: none; display: flex; align-items: center; gap: .5rem; padding: calc(.4rem + env(safe-area-inset-top)) .5rem .4rem; background: var(--navy-900); }
+.jg-x { flex: none; width: 40px; height: 40px; border-radius: 50%; border: none; background: rgba(255,255,255,.12); color: #fff; font-size: 1.5rem; font-weight: 800; line-height: 1; }
+.jg-viagem { flex: 1; min-width: 0; font-size: .8rem; font-weight: 700; opacity: .9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jg-barra .btn { flex: none; }
+.jg-caixa { position: relative; flex: 1; min-height: 0; margin: 0 auto; width: 100%; max-width: 480px; overflow: hidden; background: #2B3445; }
+.jg-caixa canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.jg-hud { position: absolute; left: 0; right: 0; top: 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; padding: 10px 12px 0; pointer-events: none; }
+.jg-hud[hidden] { display: none; }
+.jg-placa { background: rgba(3,33,59,.86); border-radius: 14px; padding: 6px 12px; font-weight: 800; font-size: 14px; line-height: 1.15; text-align: center; min-width: 78px; }
+.jg-placa b { display: block; font-size: 24px; font-weight: 900; color: var(--amarelo); }
+.jg-vidas { letter-spacing: 3px; font-size: 20px !important; }
+.jg-tela { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center; background: rgba(3,33,59,.93); overflow-y: auto; }
+.jg-tela[hidden] { display: none; }
+.jg-tela img { width: 132px; height: 132px; object-fit: contain; background: #fff; border-radius: 50%; padding: 12px; border: 5px solid var(--amarelo); animation: assistente-acena 1.8s ease-in-out infinite; }
+.jg-tela h2 { font-size: 30px; font-weight: 900; line-height: 1.1; color: #fff; }
+.jg-tela h2 span { color: var(--amarelo); }
+.jg-tela p { font-size: 16px; font-weight: 700; opacity: .92; line-height: 1.4; max-width: 320px; margin: 0; }
+.jg-tela ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 15px; font-weight: 700; text-align: left; }
+.jg-tela li::before { content: "•"; color: var(--amarelo); font-weight: 900; margin-right: 8px; }
+.jg-btn { border: none; border-radius: 16px; background: var(--amarelo); color: var(--navy-900); font-weight: 900; font-size: 20px; padding: 13px 34px; box-shadow: 0 6px 0 #C98A00; }
+.jg-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #C98A00; }
+.jg-numero { font-size: 60px; font-weight: 900; color: var(--amarelo); line-height: 1; }
+.jg-tela .jg-nota { font-size: 13px; opacity: .7; font-weight: 600; max-width: 300px; }
+/* Personagem no canto: corre durante a partida e reage ao que acontece. */
+.jg-amigo { position: absolute; left: 10px; bottom: calc(14px + env(safe-area-inset-bottom)); width: 86px; height: 86px; border-radius: 50%; background: #fff; border: 4px solid var(--amarelo); display: grid; place-items: center; pointer-events: none; box-shadow: 0 8px 20px rgba(0,0,0,.4); transition: border-color .2s; }
+.jg-amigo[hidden] { display: none; }
+.jg-amigo img { width: 66px; height: 66px; object-fit: contain; transform-origin: 50% 85%; }
+.jg-amigo.correndo img { animation: jg-corre .42s ease-in-out infinite; }
+.jg-amigo.feliz { border-color: #2BD67B; } .jg-amigo.feliz img { animation: jg-pula .5s ease-out 2; }
+.jg-amigo.bravo { border-color: #FF5A4F; } .jg-amigo.bravo img { animation: jg-treme .09s linear 9; }
+.jg-amigo.aceno img { animation: assistente-acena 1s ease-in-out 1; }
+.jg-fala { position: absolute; left: 76px; top: -12px; background: var(--amarelo); color: var(--navy-900); font-weight: 900; font-size: 15px; padding: 4px 11px; border-radius: 13px 13px 13px 3px; white-space: nowrap; opacity: 0; transform-origin: 0 100%; }
+.jg-amigo.feliz .jg-fala, .jg-amigo.bravo .jg-fala, .jg-amigo.aceno .jg-fala { animation: jg-fala 1.15s ease-out both; }
+.jg-amigo.bravo .jg-fala { background: #FF5A4F; color: #fff; }
+.jg-tela img.comemora { animation: jg-comemora .7s ease-in-out infinite; }
+.jg-tela img.quebrou { animation: jg-treme .1s linear 12, jg-bufa 1.4s ease-in-out infinite 1.2s; border-color: #FF5A4F; }
+.jg-tela img.recorde { animation: jg-pula .8s ease-out infinite; border-color: #2BD67B; }
+.jg-brilhos { position: relative; height: 0; width: 210px; } .jg-brilhos[hidden] { display: none; }
+.jg-brilhos span { position: absolute; top: -140px; left: -6px; color: var(--amarelo); font-size: 30px; animation: jg-brilha 1.1s ease-in-out infinite; }
+.jg-brilhos span:nth-child(2) { left: auto; right: -6px; top: -100px; animation-delay: .35s; font-size: 22px; }
+.jg-brilhos span:nth-child(3) { left: auto; right: 26px; top: -180px; animation-delay: .7s; font-size: 18px; }
+@keyframes jg-corre { 0%, 100% { transform: translate(-2px, 0) rotate(-5deg); } 50% { transform: translate(3px, -7px) rotate(5deg); } }
+@keyframes jg-pula { 0%, 100% { transform: none; } 40% { transform: translateY(-15px) scale(1.14); } 70% { transform: translateY(0) scale(.94, 1.06); } }
+@keyframes jg-treme { 0%, 100% { transform: translateX(-4px) rotate(-6deg); } 50% { transform: translateX(4px) rotate(6deg); } }
+@keyframes jg-fala { 0% { opacity: 0; transform: scale(.4); } 14% { opacity: 1; transform: scale(1.12); } 24% { transform: scale(1); } 78% { opacity: 1; } 100% { opacity: 0; transform: translateY(-10px); } }
+@keyframes jg-comemora { 0%, 100% { transform: translateY(0) rotate(-6deg); } 50% { transform: translateY(-16px) rotate(6deg); } }
+@keyframes jg-bufa { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06, .96); } }
+@keyframes jg-brilha { 0%, 100% { transform: scale(.3) rotate(0); opacity: 0; } 50% { transform: scale(1.2) rotate(40deg); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .faixa-jogo, .jg-tela img, .jg-amigo img, .jg-fala, .jg-brilhos span { animation: none !important; }
+  .jg-fala { opacity: 1; }
+}
+/* Com o jogo aberto, os avisos sobem para o topo: embaixo cobririam o ônibus. */
+body.com-jogo #avisos { bottom: auto; top: calc(64px + env(safe-area-inset-top)); }
